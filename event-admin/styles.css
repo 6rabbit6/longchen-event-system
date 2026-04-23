@@ -1,0 +1,287 @@
+:root {
+  --brand: #cf0043;
+  --ink: #1f242d;
+  --muted: #7d8592;
+  --line: #edf0f4;
+  --page: #f5f6f8;
+  --card: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.admin-shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 18px;
+}
+
+.admin-header,
+.toolbar,
+.registration-head,
+.inline-row,
+.card-actions,
+.filter-bar,
+.toolbar-actions,
+.switch-grid {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.admin-header,
+.toolbar {
+  justify-content: space-between;
+}
+
+.admin-header span {
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-header h1 {
+  margin: 4px 0 0;
+}
+
+.admin-nav {
+  display: flex;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.admin-nav button,
+button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.admin-nav button {
+  padding: 0 18px;
+}
+
+.admin-nav .is-active,
+.primary-button {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+
+.ghost-button {
+  padding: 0 14px;
+}
+
+.danger-button {
+  color: var(--brand);
+}
+
+.admin-screen {
+  display: grid;
+  gap: 14px;
+}
+
+.login-card,
+.editor-card,
+.nested-card,
+.event-admin-card,
+.registration-card,
+.empty-card {
+  border-radius: 10px;
+  background: var(--card);
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(31, 36, 45, 0.06);
+}
+
+.login-card {
+  display: grid;
+  gap: 14px;
+  width: min(420px, 100%);
+  margin: 70px auto;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.card-list {
+  display: grid;
+  gap: 12px;
+}
+
+.event-admin-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+}
+
+.event-admin-card h3,
+.registration-card h3 {
+  margin: 8px 0;
+}
+
+.event-admin-card p,
+.registration-card p,
+.toolbar p,
+.muted-text {
+  color: var(--muted);
+}
+
+.pill {
+  display: inline-flex;
+  margin-right: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f4f6f8;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pill.green {
+  color: #078252;
+}
+
+.pill.red {
+  color: var(--brand);
+}
+
+.pill.muted {
+  color: var(--muted);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.full-field {
+  margin: 12px 0;
+}
+
+.switch-grid {
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.check-field {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+}
+
+.check-field input {
+  width: auto;
+  min-height: auto;
+}
+
+.nested-card {
+  margin: 14px 0;
+  background: #fbfcfd;
+}
+
+.group-editor {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.filter-bar {
+  flex-wrap: wrap;
+  padding: 12px;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.registration-card {
+  display: grid;
+  gap: 8px;
+}
+
+.error-text {
+  color: var(--brand);
+}
+
+.field-error {
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.warning-text {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #fff7e8;
+  color: #a26200;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%) translateY(16px);
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: rgba(31, 36, 45, 0.92);
+  color: #fff;
+  opacity: 0;
+  transition: 0.18s;
+}
+
+.toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (max-width: 720px) {
+  .event-admin-card,
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-row,
+  .toolbar,
+  .admin-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>赛事管理中心</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="admin-shell">
+      <header class="admin-header">
+        <div>
+          <span>EVENT ADMIN</span>
+          <h1 id="pageTitle">赛事管理中心</h1>
+        </div>
+        <button id="logoutButton" class="ghost-button" type="button">退出</button>
+      </header>
+      <nav id="adminNav" class="admin-nav"></nav>
+      <section id="app" class="admin-screen"></section>
+    </main>
+    <div id="toast" class="toast"></div>
+
+    <script src="./config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./utils.js"></script>
+    <script src="./api.js"></script>
+    <script src="./state.js"></script>
+    <script src="./components.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
