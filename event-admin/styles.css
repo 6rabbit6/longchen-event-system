@@ -190,6 +190,10 @@ textarea {
   gap: 12px;
 }
 
+.full-span {
+  grid-column: 1 / -1;
+}
+
 .full-field {
   margin: 12px 0;
 }
@@ -229,6 +233,55 @@ textarea {
   background: #fff;
 }
 
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stats-card,
+.stats-panel {
+  border-radius: 10px;
+  background: var(--card);
+  padding: 14px;
+  box-shadow: 0 8px 24px rgba(31, 36, 45, 0.06);
+}
+
+.stats-card span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stats-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 28px;
+}
+
+.stats-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stats-panel h3 {
+  margin: 0 0 10px;
+}
+
+.stats-list {
+  display: grid;
+  gap: 8px;
+}
+
+.stats-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
 .registration-card {
   display: grid;
   gap: 8px;
@@ -242,6 +295,13 @@ textarea {
   color: var(--brand);
   font-size: 12px;
   font-weight: 650;
+}
+
+.field-help {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 .warning-text {
@@ -274,7 +334,9 @@ textarea {
 
 @media (max-width: 720px) {
   .event-admin-card,
-  .form-grid {
+  .form-grid,
+  .stats-grid,
+  .stats-columns {
     grid-template-columns: 1fr;
   }
 

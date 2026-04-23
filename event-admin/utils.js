@@ -80,6 +80,18 @@ function normalizeAdminRegistrationConfig(config) {
       label: normalizeText(item?.label),
     }))
     .filter((item) => item.value && item.label);
+  const certificateValueMap = new Map();
+  next.certificateTypes.forEach((item) => {
+    if (!certificateValueMap.has(item.value)) certificateValueMap.set(item.value, item);
+  });
+  next.certificateTypes = Array.from(certificateValueMap.values());
+
+  const files = config.files || {};
+  next.files = {
+    ...files,
+    regulationArticleUrl: normalizeText(files.regulationArticleUrl || files.regulationFile?.articleUrl || config.regulationArticleUrl),
+    commitmentArticleUrl: normalizeText(files.commitmentArticleUrl || files.commitmentFile?.articleUrl || config.commitmentArticleUrl),
+  };
 
   next.groups = (Array.isArray(config.groups) ? config.groups : []).map((group, groupIndex) => ({
     id: normalizeEventIdInput(group?.id || group?.name) || `group_${groupIndex + 1}`,
@@ -105,9 +117,6 @@ function normalizeAdminRegistrationConfig(config) {
     extraPricePerItem: Math.max(0, Number(pricingRule.extraPricePerItem || 0)),
   };
 
-  if (next.pricingRule.minEventsPerPerson > next.pricingRule.maxEventsPerPerson) {
-    next.pricingRule.maxEventsPerPerson = next.pricingRule.minEventsPerPerson;
-  }
   next.maxEventsPerPerson = next.pricingRule.maxEventsPerPerson;
   return next;
 }
@@ -132,6 +141,37 @@ function validateEventDraft(draft, existingEvents = []) {
   if (isDateAfter(draft?.registrationEndDate, draft?.competitionEndDate)) errors.registrationEndDate = "报名截止时间不应晚于比赛结束时间";
 
   const config = draft?.registrationConfig || {};
+  const pricingRule = config.pricingRule || {};
+  const pricingMode = pricingRule.mode === "tiered" ? "tiered" : pricingRule.mode === "itemized" ? "itemized" : "";
+  const minEvents = Number(pricingRule.minEventsPerPerson);
+  const maxEvents = Number(pricingRule.maxEventsPerPerson || config.maxEventsPerPerson);
+  const baseIncludedCount = Number(pricingRule.baseIncludedCount);
+  const basePrice = Number(pricingRule.basePrice);
+  const extraPricePerItem = Number(pricingRule.extraPricePerItem);
+
+  if (!pricingMode) errors["pricingRule.mode"] = "请选择收费模式";
+  if (!Number.isFinite(minEvents) || minEvents < 1) errors["pricingRule.minEventsPerPerson"] = "最少报名项目数必须大于 0";
+  if (!Number.isFinite(maxEvents) || maxEvents < 1) errors["pricingRule.maxEventsPerPerson"] = "最多报名项目数必须大于 0";
+  if (Number.isFinite(minEvents) && Number.isFinite(maxEvents) && minEvents > maxEvents) errors["pricingRule.maxEventsPerPerson"] = "最多报名项目数不能小于最少报名项目数";
+  if (pricingMode === "tiered") {
+    if (!Number.isFinite(baseIncludedCount) || baseIncludedCount < 1) errors["pricingRule.baseIncludedCount"] = "基础包含项目数必须大于 0";
+    if (!Number.isFinite(basePrice) || basePrice < 0) errors["pricingRule.basePrice"] = "基础价格必须是非负数字";
+    if (!Number.isFinite(extraPricePerItem) || extraPricePerItem < 0) errors["pricingRule.extraPricePerItem"] = "超出每项加价必须是非负数字";
+  }
+
+  const certificateValues = new Set();
+  if (!Array.isArray(config.certificateTypes) || !config.certificateTypes.length) {
+    errors.certificateTypes = "至少保留 1 个证件类型";
+  }
+  (Array.isArray(config.certificateTypes) ? config.certificateTypes : []).forEach((item, index) => {
+    const label = normalizeText(item?.label);
+    const value = normalizeEventIdInput(item?.value);
+    if (!label) errors[`certificateTypes.${index}.label`] = "证件名称不能为空";
+    if (!value) errors[`certificateTypes.${index}.value`] = "证件技术值不能为空";
+    if (value && certificateValues.has(value)) errors[`certificateTypes.${index}.value`] = "证件技术值不能重复";
+    if (value) certificateValues.add(value);
+  });
+
   const itemIds = new Set();
   (Array.isArray(config.groups) ? config.groups : []).forEach((group, groupIndex) => {
     if (!normalizeText(group.name)) errors[`groups.${groupIndex}.name`] = "组别名称不能为空";

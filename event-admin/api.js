@@ -6,8 +6,8 @@ function getAdminConfig() {
     supabaseUrl: String(config.supabaseUrl || "").replace(/\/$/, ""),
     supabaseAnonKey: String(config.supabaseAnonKey || ""),
     allowedAdminEmails: Array.isArray(config.allowedAdminEmails) ? config.allowedAdminEmails.map((item) => normalizeEmail(item)).filter(Boolean) : [],
-    platformUrl: config.platformUrl || "../event-platform/index.html",
-    registrationBaseUrl: config.registrationBaseUrl || "../registration-system/index.html",
+    platformUrl: config.platformUrl || "../Event Platform V1/index.html",
+    registrationBaseUrl: config.registrationBaseUrl || "../Registration System/index.html",
     edgeFunctionName: config.edgeFunctionName || "admin-api",
     useEdgeFunctions: config.useEdgeFunctions !== false,
   };
@@ -292,6 +292,11 @@ async function exportApprovedRegistrations(filters = {}) {
 
 function mapDbEvent(row = {}) {
   const registrationConfig = row.registration_config && typeof row.registration_config === "object" ? row.registration_config : createDefaultRegistrationConfig();
+  registrationConfig.files = {
+    ...(registrationConfig.files || {}),
+    regulationArticleUrl: registrationConfig.files?.regulationArticleUrl || row.regulation_article_url || row.regulationArticleUrl || "",
+    commitmentArticleUrl: registrationConfig.files?.commitmentArticleUrl || row.commitment_article_url || row.commitmentArticleUrl || "",
+  };
   return {
     id: row.id || "",
     name: row.name || "",
@@ -304,11 +309,15 @@ function mapDbEvent(row = {}) {
     regulationFile: {
       name: row.regulation_file_name || row.regulationFile?.name || "",
       url: row.regulation_file_url || row.regulationFile?.url || "",
+      articleUrl: registrationConfig.files.regulationArticleUrl || "",
     },
+    regulationArticleUrl: registrationConfig.files.regulationArticleUrl || "",
     commitmentFile: {
       name: row.commitment_file_name || row.commitmentFile?.name || "",
       url: row.commitment_file_url || row.commitmentFile?.url || "",
+      articleUrl: registrationConfig.files.commitmentArticleUrl || "",
     },
+    commitmentArticleUrl: registrationConfig.files.commitmentArticleUrl || "",
     bannerImage: {
       url: row.banner_image_url || row.bannerImage?.url || "",
       fitMode: row.banner_fit_mode || row.bannerImage?.fitMode || "cover",
@@ -324,6 +333,11 @@ function mapDbEvent(row = {}) {
 
 function mapEventDraftToDbRow(draft) {
   const registrationConfig = normalizeRegistrationConfig(draft.registrationConfig);
+  registrationConfig.files = {
+    ...(registrationConfig.files || {}),
+    regulationArticleUrl: String(registrationConfig.files?.regulationArticleUrl || draft.regulationArticleUrl || draft.regulationFile?.articleUrl || "").trim(),
+    commitmentArticleUrl: String(registrationConfig.files?.commitmentArticleUrl || draft.commitmentArticleUrl || draft.commitmentFile?.articleUrl || "").trim(),
+  };
   return {
     id: normalizeEventIdInput(draft.id),
     name: String(draft.name || "").trim(),
@@ -379,6 +393,10 @@ function createDefaultRegistrationConfig() {
       { value: "passport", label: "护照" },
     ],
     organizations: [],
+    files: {
+      regulationArticleUrl: "",
+      commitmentArticleUrl: "",
+    },
     pricingRule: {
       mode: "itemized",
       minEventsPerPerson: 1,

@@ -107,6 +107,8 @@ async function handleClick(event) {
   }
   if (action === "add-organization") addOrganization();
   if (action === "remove-organization") removeOrganization(Number(target.dataset.index));
+  if (action === "add-certificate-type") addCertificateType();
+  if (action === "remove-certificate-type") removeCertificateType(Number(target.dataset.index));
   if (action === "add-group") addGroup();
   if (action === "remove-group") removeGroup(Number(target.dataset.index));
   if (action === "add-group-event") addGroupEvent(Number(target.dataset.groupIndex));
@@ -131,7 +133,11 @@ function handleInput(event) {
     return;
   }
   if (!adminState.editingEvent) return;
-  if (target.dataset.field) updateDraftField(target);
+  if (target.dataset.field) {
+    updateDraftField(target);
+    if (target.dataset.field === "pricingRule.mode") render();
+  }
+  if (target.dataset.certIndex) updateCertificateType(target);
   if (target.dataset.orgIndex) updateOrganization(target);
   if (target.dataset.groupField) updateGroup(target);
   if (target.dataset.eventField) updateGroupEvent(target);
@@ -151,7 +157,12 @@ function handleChange(event) {
     adminState.selectedBulkNos = Array.from(set);
     render();
   }
-  if (target.type === "checkbox" && target.dataset.field) updateDraftField(target);
+  if (!adminState.editingEvent) return;
+  if (target.dataset.field) updateDraftField(target);
+  if (target.dataset.certIndex) updateCertificateType(target);
+  if (target.dataset.orgIndex) updateOrganization(target);
+  if (target.dataset.groupField) updateGroup(target);
+  if (target.dataset.eventField) updateGroupEvent(target);
 }
 
 async function handleLogin() {
@@ -286,7 +297,7 @@ function updateDraftField(target) {
   if (scope === "platform") {
     draft.registrationConfig.platform[field] = value;
   } else if (scope === "config") {
-    draft.registrationConfig[field] = target.type === "number" ? Number(value) : value;
+    setPath(draft.registrationConfig, field, target.type === "number" ? Number(value) : value);
   } else {
     setPath(draft, field, target.type === "number" ? Number(value) : value);
   }
@@ -317,10 +328,35 @@ function removeOrganization(index) {
   render();
 }
 
+function addCertificateType() {
+  adminState.editingEvent.registrationConfig.certificateTypes.push({ value: "", label: "" });
+  render();
+}
+
+function removeCertificateType(index) {
+  adminState.editingEvent.registrationConfig.certificateTypes.splice(index, 1);
+  render();
+}
+
+function updateCertificateType(target) {
+  const item = adminState.editingEvent.registrationConfig.certificateTypes[Number(target.dataset.certIndex)];
+  if (!item) return;
+  const field = target.dataset.certField;
+  let value = target.value;
+  if (field === "value") {
+    value = normalizeEventIdInput(value);
+    target.value = value;
+  }
+  item[field] = field === "label" ? value.trimStart() : value;
+  delete adminState.formErrors[`certificateTypes.${target.dataset.certIndex}.${field}`];
+  delete adminState.formErrors.certificateTypes;
+}
+
 function updateOrganization(target) {
   const org = adminState.editingEvent.registrationConfig.organizations[Number(target.dataset.orgIndex)];
   if (!org) return;
-  org[target.dataset.orgField] = target.value.trimStart();
+  const field = target.dataset.orgField;
+  org[field] = target.type === "checkbox" ? target.checked : target.value.trimStart();
   delete adminState.formErrors[`organizations.${target.dataset.orgIndex}.name`];
 }
 
@@ -373,6 +409,33 @@ function getFilteredRegistrations() {
     if (!keyword) return true;
     return [item.name, item.phone, item.certificateNumber, item.registrationNo].some((value) => String(value || "").includes(keyword));
   });
+}
+
+function getRegistrationStats() {
+  const sourceRecords = adminState.registrations.filter((item) => adminState.selectedEventId === "all" || item.eventId === adminState.selectedEventId);
+  const paidRecords = sourceRecords.filter((item) => item.paymentStatus === "paid");
+  const groupCounts = {};
+  const eventCounts = {};
+
+  sourceRecords.forEach((item) => {
+    const groupName = String(item.groupName || "未分组");
+    groupCounts[groupName] = (groupCounts[groupName] || 0) + 1;
+    (Array.isArray(item.eventNames) ? item.eventNames : []).forEach((eventName) => {
+      const name = String(eventName || "").trim();
+      if (!name) return;
+      eventCounts[name] = (eventCounts[name] || 0) + 1;
+    });
+  });
+
+  return {
+    total: sourceRecords.length,
+    paid: paidRecords.length,
+    pendingReview: paidRecords.filter((item) => item.status === "pending_review").length,
+    approved: paidRecords.filter((item) => item.status === "approved").length,
+    rejected: paidRecords.filter((item) => item.status === "rejected").length,
+    groupCounts,
+    eventCounts,
+  };
 }
 
 async function approveOne(no) {

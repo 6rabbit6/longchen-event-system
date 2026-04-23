@@ -19,6 +19,10 @@ function normalizeArray(value) {
   return Array.isArray(value) ? value.map((item) => safeText(item)).filter(Boolean) : [];
 }
 
+function asObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
 function setByPath(target, path, value) {
   const parts = safeText(path).split(".").filter(Boolean);
   let current = target;

@@ -10,7 +10,6 @@ let pendingInsuranceUploadFile = null;
 init();
 
 async function init() {
-  await loadAdminAuth();
   loadConfig();
   loadState();
   const eventIdCheck = validateRequestedEventId();
@@ -88,8 +87,8 @@ function setEventLoadError(message) {
 function getRegistrationAppConfig() {
   const config = window.REGISTRATION_APP_CONFIG || {};
   return {
-    platformHomeUrl: config.platformHomeUrl || "../event-platform/index.html",
-    eventAdminUrl: config.eventAdminUrl || "../event-admin/index.html",
+    platformHomeUrl: config.platformHomeUrl || "../Event Platform V1/index.html",
+    eventAdminUrl: config.eventAdminUrl || "../Event Admin/index.html",
     eventIdPattern: config.eventIdPattern || "^[a-z0-9_-]+$",
   };
 }
@@ -134,11 +133,15 @@ function mergeRemoteEventConfig(currentEvent, remoteEvent) {
     regulationFile: {
       name: safeText(remoteEvent.regulationFile?.name || currentEvent.regulationFile?.name),
       url: safeText(remoteEvent.regulationFile?.url || currentEvent.regulationFile?.url),
+      articleUrl: safeText(remoteEvent.regulationFile?.articleUrl || currentEvent.regulationFile?.articleUrl),
     },
+    regulationArticleUrl: safeText(remoteEvent.regulationArticleUrl || currentEvent.regulationArticleUrl || remoteEvent.regulationFile?.articleUrl || currentEvent.regulationFile?.articleUrl),
     commitmentFile: {
       name: safeText(remoteEvent.commitmentFile?.name || currentEvent.commitmentFile?.name),
       url: safeText(remoteEvent.commitmentFile?.url || currentEvent.commitmentFile?.url),
+      articleUrl: safeText(remoteEvent.commitmentFile?.articleUrl || currentEvent.commitmentFile?.articleUrl),
     },
+    commitmentArticleUrl: safeText(remoteEvent.commitmentArticleUrl || currentEvent.commitmentArticleUrl || remoteEvent.commitmentFile?.articleUrl || currentEvent.commitmentFile?.articleUrl),
     bannerImage: remoteEvent.bannerImage?.url ? remoteEvent.bannerImage : currentEvent.bannerImage,
     shareCard: {
       title: safeText(remoteEvent.shareCard?.title || currentEvent.shareCard?.title),
@@ -225,33 +228,10 @@ async function handleClick(eventTarget) {
   if (action === "open-event-admin") {
     openEventAdmin();
   }
-  if (action === "menu-go-admin") {
-    // 旧报名系统后台仅兼容保留；多赛事后台统一使用 Event Admin。
-    openEventAdmin();
-  }
-  if (action === "menu-go-admin-config") {
-    openEventAdmin();
-  }
-  if (action === "menu-export-approved") {
-    if (isAdminLoggedIn()) {
-      if (!guardAdminExportDataReady()) return;
-      exportApprovedRegistrationsJson();
-    }
-  }
-  if (action === "menu-export-approved-excel") {
-    if (isAdminLoggedIn()) {
-      if (!guardAdminExportDataReady()) return;
-      exportApprovedRegistrationsExcel();
-    }
-  }
   if (action === "back") {
     handleBack();
   }
   if (action === "home") {
-    if (["admin_registrations", "admin_registration_detail", "admin_stats", "admin_config"].includes(uiState.currentPage)) {
-      goToPage("admin_dashboard");
-      return;
-    }
     goToPage("detail");
   }
   if (action === "start") {
@@ -259,121 +239,6 @@ async function handleClick(eventTarget) {
   }
   if (action === "lookup") {
     goToPage("registration_lookup");
-  }
-  if (action === "admin-entry") {
-    // 旧报名系统后台仅作兼容保留；多赛事管理统一进入 Event Admin。
-    openEventAdmin();
-  }
-  if (action === "admin-login") {
-    openEventAdmin();
-  }
-  if (action === "admin-logout") {
-    openEventAdmin();
-  }
-  if (action === "admin-go-registrations") {
-    openEventAdmin();
-  }
-  if (action === "admin-go-stats") {
-    openEventAdmin();
-  }
-  if (action === "admin-go-config") {
-    openEventAdmin();
-  }
-  if (action === "admin-filter-registrations") {
-    uiState.adminRegistrationFilter = actionButton.dataset.filter || "all";
-    render();
-  }
-  if (action === "admin-view-registration") {
-    openAdminRegistrationDetail(actionButton.dataset.registrationNo);
-  }
-  if (action === "admin-approve-registration") {
-    approveRegistration(uiState.selectedRegistrationNo);
-  }
-  if (action === "admin-reject-registration") {
-    rejectRegistration(uiState.selectedRegistrationNo, uiState.rejectReasonDraft);
-  }
-  if (action === "admin-quick-approve-registration") {
-    approveRegistration(actionButton.dataset.registrationNo);
-  }
-  if (action === "admin-quick-reject-registration") {
-    handleAdminQuickReject(actionButton.dataset.registrationNo);
-  }
-  if (action === "admin-bulk-select-all") {
-    selectAllAdminRegistrations(getFilteredAdminRegistrations());
-  }
-  if (action === "admin-bulk-clear-selection") {
-    clearAdminBulkSelectedRegistrations();
-    render();
-  }
-  if (action === "admin-bulk-approve") {
-    openAdminBulkApproveConfirm(getFilteredAdminRegistrations());
-  }
-  if (action === "admin-back-dashboard") {
-    openEventAdmin();
-  }
-  if (action === "admin-back-registrations") {
-    goToPage("admin_registrations");
-  }
-  if (action === "admin-config") {
-    openEventAdmin();
-  }
-  if (action === "export-approved") {
-    if (uiState.currentPage !== "admin_dashboard" || !isAdminLoggedIn()) {
-      openEventAdmin();
-      return;
-    }
-    if (!guardAdminExportDataReady()) return;
-    exportApprovedRegistrationsJson();
-  }
-  if (action === "export-approved-excel") {
-    if (uiState.currentPage !== "admin_dashboard" || !isAdminLoggedIn()) {
-      openEventAdmin();
-      return;
-    }
-    if (!guardAdminExportDataReady()) return;
-    exportApprovedRegistrationsExcel();
-  }
-  if (action === "save-admin-config") {
-    saveAdminConfigDraft();
-  }
-  if (action === "reset-admin-config") {
-    resetAdminConfigDraftToDefault();
-  }
-  if (action === "remove-banner-image") {
-    removeBannerImageFromAdminDraft();
-  }
-  if (action === "clear-banner-url") {
-    clearBannerUrlFromAdminDraft();
-  }
-  if (action === "add-cert-type") {
-    addCertificateTypeConfig();
-  }
-  if (action === "remove-cert-type") {
-    removeCertificateTypeConfig(Number(actionButton.dataset.certIndex));
-  }
-  if (action === "add-organization") {
-    addOrganizationConfig();
-  }
-  if (action === "remove-organization") {
-    removeOrganizationConfig(Number(actionButton.dataset.orgIndex));
-  }
-  if (action === "toggle-organization") {
-    toggleOrganizationConfig(Number(actionButton.dataset.orgIndex));
-  }
-  if (action === "add-group") {
-    addGroupConfig();
-  }
-  if (action === "remove-group") {
-    removeGroupConfig(Number(actionButton.dataset.groupIndex));
-  }
-  if (action === "add-group-event") {
-    addEventItemToGroup(Number(actionButton.dataset.groupIndex));
-  }
-  if (action === "remove-group-event") {
-    removeEventItemFromGroup(Number(actionButton.dataset.groupIndex), Number(actionButton.dataset.eventIndex));
-  }
-  if (action === "apply-suggested-birth-range") {
-    applySuggestedBirthYearRange(Number(actionButton.dataset.groupIndex));
   }
   if (action === "next-form") {
     submitFormStep();
@@ -414,9 +279,6 @@ async function handleClick(eventTarget) {
       resetForNewRegistration();
       goToPage("form");
     }
-    if (confirmName === "admin-bulk-approve") {
-      await handleAdminBulkApprove(getFilteredAdminRegistrations());
-    }
   }
 }
 
@@ -427,49 +289,12 @@ function handleInput(eventTarget) {
     return;
   }
 
-  if (input.name === "adminEmail" || input.name === "adminPassword") {
-    uiState.adminLogin[input.name === "adminEmail" ? "email" : "password"] = input.value;
-    uiState.adminLogin.error = "";
-    return;
-  }
-
-  if (input.name === "adminRegistrationSearch") {
-    uiState.adminRegistrationSearch = input.value;
-    return;
-  }
-
-  if (input.name === "rejectReasonDraft") {
-    uiState.rejectReasonDraft = input.value;
-    return;
-  }
-
-  if (input.name === "adminQuickRejectReason") {
-    setAdminQuickRejectReason(input.dataset.registrationNo, input.value);
-    return;
-  }
-
-  if (input.matches("[data-admin-banner-field]")) {
-    updateBannerDraftFromInput(input, { renderAfter: false });
-    return;
-  }
-
-  if (input.matches("[data-admin-event-field], [data-admin-rule-field], [data-admin-cert-field], [data-admin-org-field], [data-admin-group-field], [data-admin-event-item-field]")) {
-    updateAdminDraftFromInput(input);
-    return;
-  }
-
   if (!input.matches("[data-draft-field]")) return;
   updateDraftField(input.name, input.value, { renderAfter: false });
 }
 
 function handleChange(eventTarget) {
   const input = eventTarget.target;
-
-  if (input.id === "bannerImageInput") {
-    handleBannerImageFile(input.files?.[0]);
-    input.value = "";
-    return;
-  }
 
   if (input.id === "insuranceInput") {
     handleInsuranceFile(input.files?.[0]);
@@ -478,35 +303,6 @@ function handleChange(eventTarget) {
 
   if (input.name === "eventIds") {
     toggleEventSelection(input.value, input.checked);
-    return;
-  }
-
-  if (input.name === "adminExportGroupFilter" || input.name === "adminExportEventFilter") {
-    uiState[input.name] = input.value || "all";
-    render();
-    return;
-  }
-
-  if (input.name === "adminRegistrationGroupFilter" || input.name === "adminRegistrationEventFilter") {
-    uiState[input.name] = input.value || "all";
-    render();
-    return;
-  }
-
-  if (input.name === "adminBulkRegistrationSelect") {
-    toggleAdminRegistrationSelected(input.dataset.registrationNo, input.checked);
-    render();
-    return;
-  }
-
-  if (input.matches("[data-admin-banner-field]")) {
-    updateBannerDraftFromInput(input, { renderAfter: true });
-    return;
-  }
-
-  if (input.matches("[data-admin-event-field], [data-admin-rule-field], [data-admin-cert-field], [data-admin-org-field], [data-admin-group-field], [data-admin-event-item-field]")) {
-    updateAdminDraftFromInput(input);
-    render();
     return;
   }
 
@@ -529,15 +325,9 @@ function render() {
     payment: renderPaymentPage,
     success: renderSuccessPage,
     registration_lookup: renderLookupPage,
-    admin_login: renderAdminLoginPage,
-    admin_dashboard: renderAdminDashboardPage,
-    admin_registrations: renderAdminRegistrationsPage,
-    admin_registration_detail: renderAdminRegistrationDetailPage,
-    admin_stats: renderAdminStatsPage,
-    admin_config: renderAdminConfigPage,
   };
 
-  if (uiState.eventLoadStatus === "loading" || (uiState.eventLoadStatus === "error" && !["admin_login", "admin_dashboard", "admin_registrations", "admin_registration_detail", "admin_stats", "admin_config"].includes(uiState.currentPage))) {
+  if (uiState.eventLoadStatus === "loading" || uiState.eventLoadStatus === "error") {
     renderEventUnavailablePage();
   } else {
     const renderer = renderers[uiState.currentPage] || renderDetailPage;
@@ -639,17 +429,12 @@ function renderBottomBar() {
     return;
   }
 
-  if (uiState.eventLoadStatus === "error" && !uiState.currentPage.startsWith("admin_")) {
+  if (uiState.eventLoadStatus === "error") {
     bottomBar.innerHTML = `<button class="secondary-button" type="button" data-action="back">返回平台</button>`;
     return;
   }
-
   if (uiState.currentPage === "detail") {
-    bottomBar.classList.add("has-secondary");
-    bottomBar.innerHTML = `
-      <button class="secondary-button" type="button" data-action="lookup">查询结果</button>
-      <button class="primary-button" type="button" data-action="start">立即报名</button>
-    `;
+    bottomBar.innerHTML = `<button class="primary-button" type="button" data-action="start">报名</button>`;
     return;
   }
 
@@ -697,52 +482,6 @@ function renderBottomBar() {
     return;
   }
 
-  if (uiState.currentPage === "admin_login") {
-    bottomBar.classList.add("has-secondary");
-    bottomBar.innerHTML = `
-      <button class="secondary-button" type="button" data-action="home">返回详情</button>
-      <button class="primary-button" type="button" data-action="admin-login" ${uiState.adminLogin.isLoading ? "disabled" : ""}>${uiState.adminLogin.isLoading ? "登录中..." : "登录"}</button>
-    `;
-    return;
-  }
-
-  if (uiState.currentPage === "admin_dashboard") {
-    bottomBar.innerHTML = `<button class="secondary-button" type="button" data-action="home">返回详情</button>`;
-    return;
-  }
-
-  if (uiState.currentPage === "admin_registrations") {
-    bottomBar.innerHTML = `<button class="secondary-button" type="button" data-action="admin-back-dashboard">返回后台</button>`;
-    return;
-  }
-
-  if (uiState.currentPage === "admin_stats") {
-    bottomBar.innerHTML = `<button class="secondary-button" type="button" data-action="admin-back-dashboard">返回后台</button>`;
-    return;
-  }
-
-  if (uiState.currentPage === "admin_registration_detail") {
-    const selected = getSelectedAdminRegistration();
-    const canReview = selected?.record?.status === "pending_review";
-    bottomBar.classList.toggle("has-secondary", !canReview);
-    bottomBar.classList.toggle("has-tertiary", canReview);
-    bottomBar.innerHTML = canReview
-      ? `
-        <button class="secondary-button" type="button" data-action="admin-back-registrations">返回列表</button>
-        <button class="secondary-button danger-button" type="button" data-action="admin-reject-registration">审核驳回</button>
-        <button class="primary-button" type="button" data-action="admin-approve-registration">审核通过</button>
-      `
-      : `<button class="secondary-button" type="button" data-action="admin-back-registrations">返回列表</button>`;
-    return;
-  }
-
-  if (uiState.currentPage === "admin_config") {
-    bottomBar.classList.add("has-secondary");
-    bottomBar.innerHTML = `
-      <button class="secondary-button" type="button" data-action="admin-entry">返回后台</button>
-      <button class="primary-button" type="button" data-action="save-admin-config">保存配置</button>
-    `;
-  }
 }
 
 async function submitFormStep() {
@@ -1251,19 +990,7 @@ function handleBack() {
     goToPage("confirm", { replace: true });
     return;
   }
-  if (uiState.currentPage === "admin_registration_detail") {
-    goToPage("admin_registrations", { replace: true });
-    return;
-  }
-  if (uiState.currentPage === "admin_registrations" || uiState.currentPage === "admin_stats") {
-    goToPage("admin_dashboard", { replace: true });
-    return;
-  }
-  if (uiState.currentPage === "admin_config") {
-    goToPage("admin_dashboard", { replace: true });
-    return;
-  }
-  if (uiState.currentPage === "success" || uiState.currentPage === "registration_lookup" || uiState.currentPage === "admin_login" || uiState.currentPage === "admin_dashboard") {
+  if (uiState.currentPage === "success" || uiState.currentPage === "registration_lookup") {
     goToPage("detail", { replace: true });
   }
 }
@@ -1298,7 +1025,6 @@ function getSafeReturnUrl(value) {
 function goToPage(page, options = {}) {
   const requestedPage = page;
   page = preparePageNavigation(page);
-  if (page !== "admin_registration_detail") uiState.rejectReasonDraft = "";
   const previousPage = uiState.currentPage;
   uiState.currentPage = page;
   uiState.validationErrors = page === "form" ? uiState.validationErrors : {};
@@ -1311,44 +1037,12 @@ function goToPage(page, options = {}) {
   render();
   saveState();
   scrollAppToTop();
-  refreshRemoteDataForPage(page);
 }
 
 function preparePageNavigation(page) {
-  const guardedPage = requireAdminAuth(page);
-  const nextPage = guardedPage || "detail";
+  const nextPage = page || "detail";
   if (nextPage === "payment") ensurePendingOrder();
-  if (nextPage === "admin_config") ensureAdminDraft();
   return nextPage;
-}
-
-async function refreshRemoteDataForPage(page) {
-  if (!["admin_dashboard", "admin_registrations", "admin_registration_detail", "admin_stats"].includes(page) || !isAdminLoggedIn()) return;
-  if (page === "admin_registration_detail" && uiState.selectedRegistrationNo && !getSelectedAdminRegistration() && isRemoteEnabled() && !uiState.remoteDetailLoading) {
-    uiState.remoteDetailLoading = true;
-    await loadSelectedRemoteRegistrationDetail(uiState.selectedRegistrationNo);
-    return;
-  }
-  await refreshRemoteAdminRegistrations();
-}
-
-async function refreshRemoteAdminRegistrations() {
-  if (!isRemoteEnabled() || uiState.remoteAdminLoading) return;
-  uiState.remoteAdminLoading = true;
-  render();
-  try {
-    const rows = await searchRemoteRegistrations("");
-    if (Array.isArray(rows)) {
-      remoteRegistrations = rows;
-      uiState.remoteAdminLoaded = true;
-      render();
-    }
-  } catch (error) {
-    console.warn("refreshRemoteAdminRegistrations failed", error);
-  } finally {
-    uiState.remoteAdminLoading = false;
-    render();
-  }
 }
 
 function getHistoryPage() {

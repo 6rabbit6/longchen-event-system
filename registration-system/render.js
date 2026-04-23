@@ -1,42 +1,56 @@
 function renderDetailPage() {
   const currentEvent = getCurrentEventConfig();
+  const settings = getCurrentRegistrationSettings();
+  const status = calculateRegistrationEventStatus(currentEvent, settings);
+  const statusLabel = getLandingStatusLabel(status);
+  const statusClass = getLandingStatusClass(status);
   screen.innerHTML = `
     <article class="detail-page">
-      <div class="event-banner">
+      <section class="event-hero">
         ${renderBannerImage(currentEvent.bannerImage)}
-        <div class="banner-badge">SHORT TRACK</div>
-        <div class="banner-track" aria-hidden="true">
-          <span></span><span></span><span></span>
-        </div>
-      </div>
-
-      <section class="title-block">
-        <div>
+        <div class="event-hero-overlay"></div>
+        <div class="event-hero-content">
+          <span class="event-hero-tag">赛事报名</span>
           <h2>${escapeHtml(currentEvent.name)}</h2>
-          <p>报名进行中</p>
+          <p>${escapeHtml(statusLabel)}｜${escapeHtml(formatDate(currentEvent.registrationStartDate))} - ${escapeHtml(formatDate(currentEvent.registrationEndDate))}</p>
+        </div>
+        <div class="banner-track" aria-hidden="true"><span></span><span></span><span></span></div>
+      </section>
+
+      <section class="event-summary-card">
+        <div class="event-summary-head">
+          <span class="event-status-pill ${statusClass}">${escapeHtml(statusLabel)}</span>
+          <strong>${escapeHtml(getShortEventTag(currentEvent))}</strong>
+        </div>
+        <h2>${escapeHtml(currentEvent.name)}</h2>
+        <div class="event-summary-meta">
+          <span>比赛时间：${escapeHtml(formatDate(currentEvent.competitionStartDate))} - ${escapeHtml(formatDate(currentEvent.competitionEndDate))}</span>
+          <span>比赛地点：${escapeHtml(currentEvent.location || "待公布")}</span>
         </div>
       </section>
 
-      <section class="info-card">
-        <h3>报名时间</h3>
-        ${infoLine("●", `${formatDate(currentEvent.registrationStartDate)} - ${formatDate(currentEvent.registrationEndDate)}`)}
+      <section class="landing-card registration-window-card">
+        <div>
+          <span class="card-eyebrow">报名时间</span>
+          <strong>${escapeHtml(formatDate(currentEvent.registrationStartDate))} - ${escapeHtml(formatDate(currentEvent.registrationEndDate))}</strong>
+          <p>${escapeHtml(getRegistrationWindowHint(status))}</p>
+        </div>
+        <i aria-hidden="true">●</i>
       </section>
 
-      <section class="info-card">
-        <h3>活动说明</h3>
-        ${fileRow(currentEvent.regulationFile?.name, currentEvent.regulationFile?.url)}
-        ${fileRow(currentEvent.commitmentFile?.name, currentEvent.commitmentFile?.url)}
+      <section class="landing-card landing-query-card">
+        <button type="button" data-action="lookup">
+          <span>报名结果查询</span>
+          <strong>查看支付与审核状态</strong>
+        </button>
       </section>
 
-      <section class="info-card">
-        <h3>赛事信息</h3>
-        ${plainRow("比赛时间", `${formatDate(currentEvent.competitionStartDate)} - ${formatDate(currentEvent.competitionEndDate)}`)}
-        ${plainRow("活动地点", currentEvent.location)}
-      </section>
-
-      <section class="info-card">
-        <h3>活动详情</h3>
-        <div class="detail-text">${normalizeArray(currentEvent.description).map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div>
+      <section class="landing-card resource-card">
+        <div class="landing-card-title">
+          <span>赛事资料</span>
+          <p>竞赛规程、参赛声明等重要信息</p>
+        </div>
+        ${renderResourceEntries(currentEvent)}
       </section>
 
     </article>
@@ -381,14 +395,110 @@ function plainRow(label, value) {
   return `<div class="plain-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || "暂无")}</strong></div>`;
 }
 
-function fileRow(name, url) {
+function renderResourceEntries(currentEvent) {
+  const resources = [
+    createResourceEntry({
+      title: "竞赛规程",
+      description: "查看组别、项目、报名规则",
+      icon: "◇",
+      articleUrl: currentEvent.regulationArticleUrl || currentEvent.regulationFile?.articleUrl,
+      file: currentEvent.regulationFile,
+    }),
+    createResourceEntry({
+      title: "参赛声明",
+      description: "查看参赛承诺与健康声明",
+      icon: "i",
+      articleUrl: currentEvent.commitmentArticleUrl || currentEvent.commitmentFile?.articleUrl,
+      file: currentEvent.commitmentFile,
+    }),
+  ].filter(Boolean);
+
+  if (!resources.length) {
+    return `<div class="resource-empty">暂无赛事资料</div>`;
+  }
+
+  return resources.map((item) => fileRow(item)).join("");
+}
+
+function createResourceEntry({ title, description, icon, articleUrl, file }) {
+  const fileUrl = safeText(file?.url);
+  const fileName = safeText(file?.name);
+  const url = safeText(articleUrl) || fileUrl;
+  if (!url || url === "#") {
+    return {
+      title,
+      description: fileName || description,
+      icon,
+      url: "",
+      mode: "empty",
+      actionText: "未配置",
+    };
+  }
+  const isArticle = Boolean(safeText(articleUrl));
+  return {
+    title,
+    description: isArticle ? "公众号文章 / 在线说明" : fileName || description,
+    icon,
+    url,
+    mode: isArticle ? "article" : "file",
+    actionText: isArticle ? "打开" : "查看",
+  };
+}
+
+function fileRow(resourceOrName, url = "") {
+  const resource =
+    typeof resourceOrName === "object"
+      ? resourceOrName
+      : createResourceEntry({
+          title: safeText(resourceOrName || "赛事资料"),
+          description: "查看赛事资料",
+          icon: "◇",
+          file: { name: resourceOrName, url },
+        });
+
   return `
-    <div class="file-row">
-      <span>${escapeHtml(name || "未命名文件")}</span>
-      <button type="button" data-action="open-file" data-file-url="${escapeHtml(url || "")}" data-file-name="${escapeHtml(name || "")}">查看</button>
-      <button type="button" data-action="download-file" data-file-url="${escapeHtml(url || "")}" data-file-name="${escapeHtml(name || "")}">下载</button>
-    </div>
+    <button class="resource-row ${resource.url ? "" : "is-disabled"}" type="button" data-action="open-file" data-file-url="${escapeHtml(resource.url || "")}" data-file-name="${escapeHtml(resource.title || "")}" ${resource.url ? "" : "aria-disabled=\"true\""}>
+      <span class="resource-icon">${escapeHtml(resource.icon || "›")}</span>
+      <span class="resource-copy">
+        <strong>${escapeHtml(resource.title || "赛事资料")}</strong>
+        <small>${escapeHtml(resource.description || "查看详情")}</small>
+      </span>
+      <em>${escapeHtml(resource.actionText || "查看")}</em>
+    </button>
   `;
+}
+
+function getLandingStatusLabel(status) {
+  const labels = {
+    [REGISTRATION_EVENT_STATUS.REGISTRATION_OPEN]: "报名进行中",
+    [REGISTRATION_EVENT_STATUS.REGISTRATION_UPCOMING]: "即将开始",
+    [REGISTRATION_EVENT_STATUS.REGISTRATION_CLOSED]: "报名已截止",
+    [REGISTRATION_EVENT_STATUS.EVENT_ENDED]: "赛事已结束",
+  };
+  return labels[status] || "赛事报名";
+}
+
+function getLandingStatusClass(status) {
+  const classes = {
+    [REGISTRATION_EVENT_STATUS.REGISTRATION_OPEN]: "is-open",
+    [REGISTRATION_EVENT_STATUS.REGISTRATION_UPCOMING]: "is-upcoming",
+    [REGISTRATION_EVENT_STATUS.REGISTRATION_CLOSED]: "is-closed",
+    [REGISTRATION_EVENT_STATUS.EVENT_ENDED]: "is-ended",
+  };
+  return classes[status] || "is-open";
+}
+
+function getRegistrationWindowHint(status) {
+  if (status === REGISTRATION_EVENT_STATUS.REGISTRATION_UPCOMING) return "报名尚未开始，请关注开放时间";
+  if (status === REGISTRATION_EVENT_STATUS.REGISTRATION_CLOSED || status === REGISTRATION_EVENT_STATUS.EVENT_ENDED) return "报名通道已关闭";
+  return "报名通道已开放，请在截止前完成报名";
+}
+
+function getShortEventTag(currentEvent) {
+  const name = safeText(currentEvent.name);
+  if (name.includes("短道")) return "短道速滑";
+  if (name.includes("跑")) return "路跑赛事";
+  return "体育赛事";
 }
 
 function renderBannerImage(bannerImage) {

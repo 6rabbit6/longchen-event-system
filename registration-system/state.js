@@ -10,10 +10,12 @@ const event = {
     name: "竞赛规程 2026年北京市短道速滑联赛V4.pdf",
     url: "#",
   },
+  regulationArticleUrl: "",
   commitmentFile: {
     name: "运动员参赛和健康承诺书.pdf",
     url: "#",
   },
+  commitmentArticleUrl: "",
   bannerImage: {
     mode: "none",
     name: "",
@@ -126,8 +128,7 @@ const registrationSettings = {
 };
 
 const storageKey = "registration-system-v1";
-const configStorageKey = "registration-system-admin-config-v1";
-const adminAuthStorageKey = "admin-auth-v1";
+const configStorageKey = "registration-system-config-v1";
 const maxBannerUploadBytes = 1024 * 1024;
 const maxBannerStoredBytes = 760 * 1024;
 const bannerMaxWidth = 1200;
@@ -142,12 +143,6 @@ const pageTitles = {
   payment: "缴费",
   success: "报名完成",
   registration_lookup: "报名结果查询",
-  admin_login: "后台登录",
-  admin_dashboard: "后台管理",
-  admin_registrations: "报名审核",
-  admin_registration_detail: "报名详情",
-  admin_stats: "报名统计",
-  admin_config: "后台配置",
 };
 
 const appState = {
@@ -159,9 +154,6 @@ let formDraft = createEmptyDraft();
 let registrationRecord = null;
 let order = createEmptyOrder();
 let completedRecords = [];
-let remoteRegistrations = [];
-let adminDraft = null;
-let adminAuth = { isLoggedIn: false };
 let bannerUrlValidationTimer = null;
 let bannerUrlValidationToken = 0;
 
@@ -183,27 +175,6 @@ const uiState = {
   lastAutoParsedIdNumber: "",
   lastInvalidIdNumber: "",
   lastDuplicateCertificateNumber: "",
-  remoteAdminLoaded: false,
-  remoteAdminLoading: false,
-  remoteDetailLoading: false,
-  remoteDetailMissRegistrationNo: "",
-  adminLogin: {
-    email: "",
-    password: "",
-    error: "",
-    isLoading: false,
-  },
-  adminRegistrationFilter: "all",
-  adminRegistrationSearch: "",
-  adminRegistrationGroupFilter: "all",
-  adminRegistrationEventFilter: "all",
-  adminQuickRejectReasonDrafts: {},
-  adminBulkSelectedRegistrationNos: [],
-  adminBulkApproving: false,
-  adminExportGroupFilter: "all",
-  adminExportEventFilter: "all",
-  selectedRegistrationNo: "",
-  rejectReasonDraft: "",
   moreMenuOpen: false,
   wheelPicker: {
     open: false,
@@ -213,46 +184,6 @@ const uiState = {
     tempValue: "",
   },
 };
-
-function isAdminLoggedIn() {
-  return Boolean(adminAuth?.session?.access_token && isAllowedAdminEmail(adminAuth?.user?.email || adminAuth?.session?.user?.email));
-}
-
-async function loadAdminAuth() {
-  adminAuth = { isLoggedIn: false, user: null, session: null };
-  try {
-    localStorage.removeItem(adminAuthStorageKey);
-    if (typeof loadSupabaseAdminSession !== "function") return;
-    const session = await loadSupabaseAdminSession();
-    if (session && !isAllowedAdminEmail(session.user?.email)) {
-      await signOutAdminWithSupabase();
-      clearAdminAuth();
-      return;
-    }
-    setAdminAuthSession(session);
-  } catch {
-    clearAdminAuth();
-  }
-}
-
-function saveAdminAuth() {
-  localStorage.removeItem(adminAuthStorageKey);
-}
-
-function setAdminAuthSession(session) {
-  adminAuth = session
-    ? {
-        isLoggedIn: true,
-        user: session.user || null,
-        session,
-      }
-    : { isLoggedIn: false, user: null, session: null };
-}
-
-function clearAdminAuth() {
-  adminAuth = { isLoggedIn: false, user: null, session: null };
-  localStorage.removeItem(adminAuthStorageKey);
-}
 
 function loadConfig() {
   try {
@@ -362,11 +293,15 @@ function sanitizeEventConfig(source) {
     regulationFile: {
       name: safeText(source?.regulationFile?.name || fallback.regulationFile.name),
       url: safeText(source?.regulationFile?.url || fallback.regulationFile.url),
+      articleUrl: safeText(source?.regulationFile?.articleUrl || ""),
     },
+    regulationArticleUrl: safeText(source?.regulationArticleUrl || fallback.regulationArticleUrl || source?.regulationFile?.articleUrl || ""),
     commitmentFile: {
       name: safeText(source?.commitmentFile?.name || fallback.commitmentFile.name),
       url: safeText(source?.commitmentFile?.url || fallback.commitmentFile.url),
+      articleUrl: safeText(source?.commitmentFile?.articleUrl || ""),
     },
+    commitmentArticleUrl: safeText(source?.commitmentArticleUrl || fallback.commitmentArticleUrl || source?.commitmentFile?.articleUrl || ""),
     bannerImage: sanitizeBannerImage(source?.bannerImage || fallback.bannerImage),
     shareCard: sanitizeShareCard(source?.shareCard || fallback.shareCard),
     description: normalizeArray(source?.description?.length ? source.description : fallback.description),
@@ -405,8 +340,35 @@ function sanitizeRegistrationConfig(source) {
       })),
     })),
   };
-  prepareAdminConfigForSave({ registrationConfig: sanitized });
+  normalizeRegistrationConfigIds(sanitized);
   return sanitized;
+}
+
+function normalizeRegistrationConfigIds(registrationConfig) {
+  const certificateTypes = Array.isArray(registrationConfig?.certificateTypes) ? registrationConfig.certificateTypes : [];
+  const usedCertificateValues = new Set();
+  certificateTypes.forEach((item) => {
+    const preferredValue = item.value || createCertificateValueFromLabel(item.label);
+    item.value = createUniqueId(preferredValue, usedCertificateValues);
+  });
+
+  const organizations = Array.isArray(registrationConfig?.organizations) ? registrationConfig.organizations : [];
+  const usedOrganizationIds = new Set();
+  organizations.forEach((item) => {
+    item.id = createUniqueId(item.id || createOrganizationIdFromName(item.name), usedOrganizationIds);
+    item.enabled = item.enabled !== false;
+  });
+
+  const groups = Array.isArray(registrationConfig?.groups) ? registrationConfig.groups : [];
+  const usedGroupIds = new Set();
+  groups.forEach((group) => {
+    group.id = createUniqueId(group.id || createGroupIdFromConfig(group), usedGroupIds);
+    const usedEventIds = new Set();
+    group.events = Array.isArray(group.events) ? group.events : [];
+    group.events.forEach((item) => {
+      item.id = createUniqueId(item.id || createEventIdFromName(item.name), usedEventIds);
+    });
+  });
 }
 
 function loadState() {

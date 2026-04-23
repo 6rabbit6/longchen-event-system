@@ -33,27 +33,6 @@ function isRemoteEnabled() {
   return getRemoteConfig().enabled;
 }
 
-function getAdminConfig() {
-  const config = window.REGISTRATION_ADMIN_CONFIG || {};
-  return {
-    allowedAdminEmails: Array.isArray(config.allowedAdminEmails) ? config.allowedAdminEmails.map(normalizeAdminEmail).filter(Boolean) : [],
-  };
-}
-
-function normalizeAdminEmail(email) {
-  return safeText(email).trim().toLowerCase();
-}
-
-function isAllowedAdminEmail(email) {
-  const allowedEmails = getAdminConfig().allowedAdminEmails;
-  const normalizedEmail = normalizeAdminEmail(email);
-  return Boolean(normalizedEmail && allowedEmails.includes(normalizedEmail));
-}
-
-function isAdminAllowlistConfigured() {
-  return getAdminConfig().allowedAdminEmails.length > 0;
-}
-
 function getSupabaseAuthClient() {
   const config = getRemoteConfig();
   if (!config.enabled || !window.supabase?.createClient) return null;
@@ -70,43 +49,6 @@ function getSupabaseAuthClient() {
   });
   supabaseAuthClientKey = clientKey;
   return supabaseAuthClient;
-}
-
-async function loadSupabaseAdminSession() {
-  const client = getSupabaseAuthClient();
-  if (!client) return null;
-  const { data, error } = await client.auth.getSession();
-  if (error) throw error;
-  return data?.session || null;
-}
-
-async function signInAdminWithSupabase(email, password) {
-  if (!isRemoteEnabled()) {
-    const error = new Error("当前未启用远程服务，无法使用管理员登录");
-    error.code = "REMOTE_DISABLED";
-    throw error;
-  }
-
-  const client = getSupabaseAuthClient();
-  if (!client) {
-    const error = new Error("管理员登录组件加载失败，请刷新后重试");
-    error.code = "AUTH_CLIENT_UNAVAILABLE";
-    throw error;
-  }
-
-  const { data, error } = await client.auth.signInWithPassword({
-    email: safeText(email).trim(),
-    password,
-  });
-  if (error) throw error;
-  return data?.session || null;
-}
-
-async function signOutAdminWithSupabase() {
-  const client = getSupabaseAuthClient();
-  if (!client) return;
-  const { error } = await client.auth.signOut();
-  if (error) throw error;
 }
 
 async function supabaseRestRequest(tableName, options = {}) {
@@ -334,47 +276,6 @@ async function searchRemoteRegistrations(query) {
   return Array.isArray(rows) ? rows.map(mapDbRegistrationToEntry) : [];
 }
 
-async function loadRemoteRegistrationDetail(registrationNo) {
-  const config = getRemoteConfig();
-  const normalizedRegistrationNo = safeText(registrationNo).trim().toUpperCase();
-  if (!config.enabled || !normalizedRegistrationNo) return null;
-
-  const query = [
-    "select=*",
-    remoteEq("event_id", config.eventId),
-    remoteEq("registration_no", normalizedRegistrationNo),
-    "limit=1",
-  ].join("&");
-  const rows = await supabaseRestRequest("registrations", { query });
-  const row = Array.isArray(rows) ? rows[0] : null;
-  return row ? mapDbRegistrationToEntry(row) : null;
-}
-
-async function reviewRemoteRegistration(registrationNo, nextStatus, rejectReason = "") {
-  const config = getRemoteConfig();
-  if (!config.enabled) return null;
-
-  const status = nextStatus === "approved" ? "approved" : "rejected";
-  const body = {
-    status,
-    reject_reason: status === "rejected" ? safeText(rejectReason).trim() : "",
-    reviewed_at: nowIso(),
-  };
-  const query = [
-    remoteEq("event_id", config.eventId),
-    remoteEq("registration_no", safeText(registrationNo).trim().toUpperCase()),
-    remoteEq("status", "pending_review"),
-    remoteEq("payment_status", "paid"),
-  ].join("&");
-  const rows = await supabaseRestRequest("registrations", {
-    method: "PATCH",
-    query,
-    body,
-  });
-  const row = Array.isArray(rows) ? rows[0] : null;
-  return row ? mapDbRegistrationToEntry(row) : null;
-}
-
 function getRemoteRegistrationSearchColumn(query) {
   if (/^1[3-9]\d{9}$/.test(query)) return "phone";
   if (query.toUpperCase().startsWith("BM-")) return "registration_no";
@@ -384,6 +285,7 @@ function getRemoteRegistrationSearchColumn(query) {
 function mapDbEventToEventConfig(row) {
   const bannerUrl = pickRemoteValue(row, "banner_image_url", "banner_url", "bannerImageUrl");
   const remoteRegistrationConfig = pickRemoteValue(row, "registration_config", "registrationConfig");
+  const remoteFiles = asObject(asObject(remoteRegistrationConfig).files || asObject(remoteRegistrationConfig).documents || asObject(remoteRegistrationConfig).resources);
   return {
     id: safeText(pickRemoteValue(row, "id")),
     name: safeText(pickRemoteValue(row, "name")),
@@ -395,11 +297,15 @@ function mapDbEventToEventConfig(row) {
     regulationFile: {
       name: safeText(pickRemoteValue(row, "regulation_file_name", "regulationFileName", "regulation_name")),
       url: safeText(pickRemoteValue(row, "regulation_file_url", "regulationFileUrl", "regulation_url")),
+      articleUrl: safeText(pickRemoteValue(row, "regulation_article_url", "regulationArticleUrl") || remoteFiles.regulationArticleUrl || asObject(remoteFiles.regulationFile).articleUrl),
     },
+    regulationArticleUrl: safeText(pickRemoteValue(row, "regulation_article_url", "regulationArticleUrl") || remoteFiles.regulationArticleUrl || asObject(remoteFiles.regulationFile).articleUrl),
     commitmentFile: {
       name: safeText(pickRemoteValue(row, "commitment_file_name", "commitmentFileName", "commitment_name")),
       url: safeText(pickRemoteValue(row, "commitment_file_url", "commitmentFileUrl", "commitment_url")),
+      articleUrl: safeText(pickRemoteValue(row, "commitment_article_url", "commitmentArticleUrl") || remoteFiles.commitmentArticleUrl || asObject(remoteFiles.commitmentFile).articleUrl),
     },
+    commitmentArticleUrl: safeText(pickRemoteValue(row, "commitment_article_url", "commitmentArticleUrl") || remoteFiles.commitmentArticleUrl || asObject(remoteFiles.commitmentFile).articleUrl),
     bannerImage: {
       mode: bannerUrl ? "url" : "none",
       name: safeText(pickRemoteValue(row, "banner_image_name", "bannerImageName")),
