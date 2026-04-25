@@ -129,6 +129,27 @@ function formatCurrency(value) {
   return `¥${Number(value || 0).toFixed(0)}`;
 }
 
+const ALLTUU_EMBED_HOST = "https://v05.m.alltuu.com";
+
+function normalizeAlltuuMiniProgramUrl(url) {
+  const text = safeText(url).trim();
+  if (!text) return "";
+  try {
+    const parsed = new URL(text);
+    if (parsed.protocol !== "https:") return text;
+    if (/^v0[56]\.m\.alltuu\.com$/i.test(parsed.hostname)) return text;
+    if (parsed.hostname === "alltuu.cc" && parsed.pathname.startsWith("/r/")) {
+      return `${ALLTUU_EMBED_HOST}${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+    if (parsed.hostname === "m.alltuu.com" && parsed.pathname === "/mobile/") {
+      return `${ALLTUU_EMBED_HOST}${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+  } catch {
+    return text;
+  }
+  return text;
+}
+
 function formatFileSize(bytes) {
   const size = Number(bytes) || 0;
   if (size < 1024) return `${size}B`;

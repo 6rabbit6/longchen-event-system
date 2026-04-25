@@ -5,6 +5,7 @@ const appState = {
   loading: true,
   loadError: "",
   events: [],
+  homeConfig: createDefaultHomeConfig(),
   quickActions,
 };
 

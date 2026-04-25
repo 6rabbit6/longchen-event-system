@@ -19,7 +19,7 @@ function bindEvents() {
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
-    const target = event.target.closest("[data-action='open-event']");
+    const target = event.target.closest("[data-action='open-event'], [data-action='open-home-banner']");
     if (target) handleAction(target);
   });
 }
@@ -39,6 +39,14 @@ function handleAction(target) {
 
   if (action === "open-event") {
     openRegistrationModule(target.dataset.eventId);
+  }
+
+  if (action === "open-home-banner") {
+    openHomeBanner(target.dataset.bannerId);
+  }
+
+  if (action === "open-announcement") {
+    openHomeAnnouncement(target.dataset.announcementId);
   }
 }
 
@@ -77,11 +85,10 @@ function renderHomePage() {
 
   const hotEvents = appState.events.filter((item) => item.isHot).slice(0, 4);
   const latestEvents = [...appState.events].sort((a, b) => String(b.registerStart || "").localeCompare(String(a.registerStart || ""))).slice(0, 4);
-  const featuredEvent = hotEvents[0] || latestEvents[0] || null;
-
   return `
     <article class="home-page">
-      ${renderHero(featuredEvent)}
+      ${renderHero(appState.homeConfig)}
+      ${renderHomeAnnouncements(appState.homeConfig)}
       ${renderQuickActions(appState.quickActions)}
       <section class="content-section">
         ${renderSectionTitle("热门赛事", "全部赛事")}
@@ -164,13 +171,32 @@ function openRegistrationModule(eventId) {
   window.location.href = registrationUrl;
 }
 
+function openHomeBanner(bannerId) {
+  const banner = getEnabledHomeBanners(appState.homeConfig).find((item) => item.id === bannerId);
+  if (!banner) return;
+  if (banner.linkType === "event") {
+    openRegistrationModule(banner.eventId);
+    return;
+  }
+  if (banner.linkType === "url" && banner.linkUrl) {
+    window.open(banner.linkUrl, "_blank", "noopener");
+  }
+}
+
+function openHomeAnnouncement(announcementId) {
+  const announcement = (appState.homeConfig.announcements || []).find((item) => item.id === announcementId);
+  if (announcement?.linkUrl) window.open(announcement.linkUrl, "_blank", "noopener");
+}
+
 async function refreshPlatformEvents() {
   appState.loading = true;
   appState.loadError = "";
   renderApp();
 
   try {
-    appState.events = await loadPlatformEvents();
+    const [events, homeConfig] = await Promise.all([loadPlatformEvents(), loadPlatformHomeConfig()]);
+    appState.events = events;
+    appState.homeConfig = homeConfig;
     if (!appState.events.length) {
       appState.loadError = "暂无已发布赛事";
     }

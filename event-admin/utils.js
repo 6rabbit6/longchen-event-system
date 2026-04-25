@@ -1,4 +1,5 @@
 const EVENT_ID_PATTERN = new RegExp(window.EVENT_ADMIN_CONFIG?.eventIdPattern || "^[a-z0-9_-]+$");
+const RESERVED_EVENT_IDS = new Set(["platform_home_config"]);
 const EVENT_STATUS = {
   SOFT_DELETED: "soft_deleted",
   UNPUBLISHED: "unpublished",
@@ -42,7 +43,6 @@ function normalizeEventDraftBeforeSave(draft) {
   next.id = normalizeEventIdInput(next.id);
   next.name = normalizeText(next.name);
   next.location = normalizeText(next.location);
-  next.description = normalizeText(next.description);
   next.registrationConfig = normalizeAdminRegistrationConfig(next.registrationConfig || {});
   next.registrationConfig.platform = {
     ...(next.registrationConfig.platform || {}),
@@ -50,6 +50,55 @@ function normalizeEventDraftBeforeSave(draft) {
     sortOrder: Number(next.registrationConfig.platform?.sortOrder || 0) || 0,
   };
   return next;
+}
+
+function createDefaultPlatformHomeConfig() {
+  return {
+    heroTitle: "龙辰赛事服务平台",
+    heroSubtitle: "赛事报名、成绩查询、订单与保险服务一站式入口",
+    announcements: [
+      {
+        id: "default_notice",
+        text: "官方赛事报名入口已上线，报名、查询与订单服务将逐步接入。",
+        enabled: true,
+        linkUrl: "",
+      },
+    ],
+    banners: [],
+  };
+}
+
+function normalizePlatformHomeConfig(config = {}) {
+  const defaults = createDefaultPlatformHomeConfig();
+  const announcements = Array.isArray(config.announcements) ? config.announcements : defaults.announcements;
+  const banners = Array.isArray(config.banners) ? config.banners : defaults.banners;
+  return {
+    heroTitle: normalizeText(config.heroTitle || defaults.heroTitle),
+    heroSubtitle: normalizeText(config.heroSubtitle || defaults.heroSubtitle),
+    announcements: announcements
+      .map((item, index) => ({
+        id: normalizeEventIdInput(item?.id || `notice_${index + 1}`) || `notice_${index + 1}`,
+        text: normalizeText(item?.text),
+        enabled: item?.enabled !== false,
+        linkUrl: normalizeText(item?.linkUrl),
+      }))
+      .filter((item) => item.text)
+      .slice(0, 3),
+    banners: banners
+      .map((item, index) => ({
+        id: normalizeEventIdInput(item?.id || `banner_${index + 1}`) || `banner_${index + 1}`,
+        title: normalizeText(item?.title),
+        subtitle: normalizeText(item?.subtitle),
+        imageUrl: normalizeText(item?.imageUrl),
+        enabled: item?.enabled !== false,
+        sortOrder: Number(item?.sortOrder || index) || 0,
+        linkType: ["none", "event", "url"].includes(item?.linkType) ? item.linkType : "none",
+        eventId: normalizeEventIdInput(item?.eventId),
+        linkUrl: normalizeText(item?.linkUrl),
+      }))
+      .filter((item) => item.title || item.imageUrl)
+      .slice(0, 3),
+  };
 }
 
 function normalizeAdminRegistrationConfig(config) {
@@ -87,10 +136,26 @@ function normalizeAdminRegistrationConfig(config) {
   next.certificateTypes = Array.from(certificateValueMap.values());
 
   const files = config.files || {};
+  const photoQueryUrl = normalizeText(config.photoQueryUrl || config.platform?.photoQueryUrl || files.photoQueryUrl);
   next.files = {
     ...files,
     regulationArticleUrl: normalizeText(files.regulationArticleUrl || files.regulationFile?.articleUrl || config.regulationArticleUrl),
     commitmentArticleUrl: normalizeText(files.commitmentArticleUrl || files.commitmentFile?.articleUrl || config.commitmentArticleUrl),
+    regulationContent: normalizeText(files.regulationContent || config.regulationContent),
+    commitmentContent: normalizeText(files.commitmentContent || config.commitmentContent),
+    photoQueryUrl,
+  };
+  next.photoQueryUrl = photoQueryUrl;
+
+  const weather = config.weather || {};
+  next.weather = {
+    enabled: weather.enabled !== false,
+    mode: weather.mode === "auto" ? "auto" : "manual",
+    temperature: normalizeText(weather.temperature),
+    condition: normalizeText(weather.condition),
+    humidity: normalizeText(weather.humidity),
+    wind: normalizeText(weather.wind),
+    location: normalizeText(weather.location),
   };
 
   next.groups = (Array.isArray(config.groups) ? config.groups : []).map((group, groupIndex) => ({
@@ -129,6 +194,7 @@ function validateEventDraft(draft, existingEvents = []) {
   if (!normalizeText(draft?.name)) errors.name = "赛事名称不能为空";
   if (!normalizedId) errors.id = "eventId 不能为空";
   if (normalizedId && !isSafeEventId(normalizedId)) errors.id = "eventId 只能使用小写字母、数字、下划线和中划线";
+  if (RESERVED_EVENT_IDS.has(normalizedId)) errors.id = "该 eventId 为系统保留配置 ID，不能用于赛事";
   if (existingEvents.some((item) => item.id === normalizedId && item.id !== originalId)) errors.id = "eventId 已存在，请更换";
 
   ["registrationStartDate", "registrationEndDate", "competitionStartDate", "competitionEndDate"].forEach((field) => {

@@ -46,11 +46,17 @@ function renderSectionTitle(title, actionText = "") {
   `;
 }
 
-function renderHero(featuredEvent) {
-  const title = featuredEvent?.title || "一站式赛事服务平台";
-  const summary = featuredEvent ? "当前主推赛事已上线，点击赛事卡片即可进入报名通道。" : "浏览赛事、在线报名、查询成绩与订单，后续接入更多赛事服务。";
+function renderHero(homeConfig = createDefaultHomeConfig()) {
+  const config = normalizeHomeConfig(homeConfig);
+  const banner = getEnabledHomeBanners(config)[0] || null;
+  const title = banner?.title || config.heroTitle || "龙辰赛事服务平台";
+  const summary = banner?.subtitle || config.heroSubtitle || "赛事报名、成绩查询、订单与保险服务一站式入口";
+  const imageUrl = banner?.imageUrl || "";
+  const bannerAttrs = banner ? `data-banner-id="${escapeHtml(banner.id)}"` : "";
+  const clickable = banner && banner.linkType !== "none" ? " hero-clickable" : "";
   return `
-    <section class="hero">
+    <section class="hero${imageUrl ? " has-banner-image" : ""}${clickable}" ${bannerAttrs} ${clickable ? `data-action="open-home-banner" tabindex="0" role="button"` : ""}>
+      ${imageUrl ? `<img class="hero-bg-image" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(title)}" />` : ""}
       <div class="hero-art" aria-hidden="true">
         <span class="hero-line hero-line-one"></span>
         <span class="hero-line hero-line-two"></span>
@@ -65,6 +71,46 @@ function renderHero(featuredEvent) {
           <span>赛事聚合</span>
           <span>移动优先</span>
         </div>
+      </div>
+    </section>
+  `;
+}
+
+function normalizeHomeConfig(config = {}) {
+  const defaults = createDefaultHomeConfig();
+  return {
+    ...defaults,
+    ...config,
+    heroTitle: String(config.heroTitle || defaults.heroTitle).trim(),
+    heroSubtitle: String(config.heroSubtitle || defaults.heroSubtitle).trim(),
+    announcements: Array.isArray(config.announcements) ? config.announcements : defaults.announcements,
+    banners: Array.isArray(config.banners) ? config.banners : defaults.banners,
+  };
+}
+
+function getEnabledHomeBanners(homeConfig = {}) {
+  return (Array.isArray(homeConfig.banners) ? homeConfig.banners : [])
+    .filter((item) => item && item.enabled !== false)
+    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0));
+}
+
+function renderHomeAnnouncements(homeConfig = {}) {
+  const announcements = (Array.isArray(homeConfig.announcements) ? homeConfig.announcements : [])
+    .filter((item) => item && item.enabled !== false && String(item.text || "").trim())
+    .slice(0, 3);
+  if (!announcements.length) return "";
+  return `
+    <section class="announcement-bar" aria-label="平台公告">
+      <span>公告</span>
+      <div>
+        ${announcements
+          .map((item) => {
+            const content = escapeHtml(item.text);
+            return item.linkUrl
+              ? `<button type="button" data-action="open-announcement" data-announcement-id="${escapeHtml(item.id)}">${content}</button>`
+              : `<p>${content}</p>`;
+          })
+          .join("")}
       </div>
     </section>
   `;

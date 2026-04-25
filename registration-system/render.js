@@ -29,6 +29,8 @@ function renderDetailPage() {
         </div>
       </section>
 
+      ${renderEventToolCards(currentEvent, settings)}
+
       <section class="landing-card registration-window-card">
         <div>
           <span class="card-eyebrow">报名时间</span>
@@ -38,12 +40,7 @@ function renderDetailPage() {
         <i aria-hidden="true">●</i>
       </section>
 
-      <section class="landing-card landing-query-card">
-        <button type="button" data-action="lookup">
-          <span>报名结果查询</span>
-          <strong>查看支付与审核状态</strong>
-        </button>
-      </section>
+      ${renderQueryEntryCards(settings)}
 
       <section class="landing-card resource-card">
         <div class="landing-card-title">
@@ -55,6 +52,145 @@ function renderDetailPage() {
 
     </article>
   `;
+}
+
+function renderQueryEntryCards(settings) {
+  const photoQueryUrl = safeText(settings?.photoQueryUrl || settings?.platform?.photoQueryUrl || settings?.files?.photoQueryUrl).trim();
+  return `
+    <section class="landing-query-grid ${photoQueryUrl ? "has-photo" : ""}">
+      <button class="landing-query-entry registration-query-entry" type="button" data-action="lookup">
+        <span>报名查询</span>
+        <strong>查看支付与审核状态</strong>
+      </button>
+      ${
+        photoQueryUrl
+          ? `
+            <button class="landing-query-entry photo-query-entry" type="button" data-action="open-photo-query" data-photo-url="${escapeHtml(photoQueryUrl)}">
+              <span>照片查询</span>
+              <strong>查看赛事照片直播</strong>
+            </button>
+          `
+          : ""
+      }
+    </section>
+  `;
+}
+
+function renderEventToolCards(currentEvent, settings) {
+  const weather = normalizeDetailWeather(settings?.weather, currentEvent);
+  const countdown = buildEventCountdown(currentEvent?.competitionStartDate);
+  return `
+    <section class="event-tool-wrapper">
+      ${
+        weather.enabled
+          ? `
+            <article class="event-tool-card weather-card">
+              <div class="weather-main">
+                <div class="weather-temp">
+                  <span>${escapeHtml(weather.temperature)}</span>
+                  ${weather.temperature !== "--" ? `<small>℃</small>` : ""}
+                </div>
+                <div class="weather-copy">
+                  <span>${escapeHtml(weather.condition)}</span>
+                  <span>${escapeHtml(weather.humidity)}</span>
+                </div>
+              </div>
+              <div class="weather-sub">
+                <span>${escapeHtml(weather.wind)}</span>
+                <span>${escapeHtml(weather.location)}</span>
+              </div>
+              <span class="weather-icon" aria-hidden="true">${escapeHtml(weather.icon)}</span>
+            </article>
+          `
+          : ""
+      }
+      <article class="event-tool-card countdown-card ${weather.enabled ? "" : "countdown-card-full"}">
+        <span class="countdown-title">${escapeHtml(countdown.title)}</span>
+        ${
+          countdown.ended
+            ? `<strong class="countdown-message">${escapeHtml(countdown.message)}</strong>`
+            : `
+              <div class="countdown-row">
+                <strong>${escapeHtml(countdown.days)}</strong><span>天</span>
+                <strong>${escapeHtml(countdown.hours)}</strong><span>时</span>
+                <strong>${escapeHtml(countdown.minutes)}</strong><span>分</span>
+              </div>
+            `
+        }
+      </article>
+    </section>
+  `;
+}
+
+function normalizeDetailWeather(source, currentEvent) {
+  const weather = asObject(source);
+  const condition = safeText(weather.condition || weather.weather || weather.text).trim();
+  const humidity = safeText(weather.humidity || weather.sd).trim();
+  const wind = safeText(
+    weather.wind ||
+      `${safeText(weather.wind_direction || weather.windDirection).trim()}${safeText(weather.wind_power || weather.windPower).trim()}`,
+  ).trim();
+  const location = safeText(weather.location || weather.city || weather.district || currentEvent?.location).trim();
+  return {
+    enabled: weather.enabled !== false,
+    temperature: safeText(weather.temperature || weather.temp || weather.currentTemperature).trim() || "--",
+    condition: condition || "赛地天气",
+    humidity: humidity ? (/^湿度[:：]?/.test(humidity) ? humidity : `湿度:${humidity}`) : "以当地实时天气为准",
+    wind: wind || "天气服务待接入",
+    location: location || "地点待定",
+    icon: condition.includes("雨") ? "☔" : condition.includes("云") ? "☁" : "☀",
+  };
+}
+
+function buildEventCountdown(startDate) {
+  const target = parseEventStartDate(startDate);
+  if (!target) {
+    return {
+      title: "距离比赛开始",
+      ended: true,
+      message: "比赛时间待定",
+      days: "00",
+      hours: "00",
+      minutes: "00",
+    };
+  }
+
+  const diff = target.getTime() - Date.now();
+  if (diff <= 0) {
+    return {
+      title: "距离比赛开始",
+      ended: true,
+      message: "比赛已开始",
+      days: "00",
+      hours: "00",
+      minutes: "00",
+    };
+  }
+
+  const totalMinutes = Math.floor(diff / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  return {
+    title: "距离比赛开始",
+    ended: false,
+    days: padCountdownValue(days),
+    hours: padCountdownValue(hours),
+    minutes: padCountdownValue(minutes),
+  };
+}
+
+function parseEventStartDate(value) {
+  const text = safeText(value).trim();
+  if (!text) return null;
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(text) ? `${text}T00:00:00` : text.replace(" ", "T");
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function padCountdownValue(value) {
+  const number = Math.max(0, Number(value) || 0);
+  return number < 10 ? `0${number}` : String(number);
 }
 
 function renderEventUnavailablePage() {
@@ -90,7 +226,7 @@ function renderFormPage() {
         <div class="form-row picker-form-row ${errors.groupId ? "has-error" : ""}">
           <span class="row-label">参赛组别</span>
           <button class="picker-row-button ${formDraft.groupName ? "" : "is-placeholder"}" type="button" data-action="open-wheel-picker" data-picker-type="group" ${canPickGroup ? "" : "disabled"}>
-            ${escapeHtml(formDraft.groupName || (canPickGroup ? "请单选 参赛组别" : "请先选择性别和出生日期"))}
+            ${escapeHtml(formDraft.groupName || (canPickGroup ? "请单选 参赛组别" : "请先完善性别和出生日期后再选择参赛组别"))}
           </button>
           <span class="row-arrow">›</span>
           ${fieldError("groupId")}
@@ -306,6 +442,7 @@ function dateRow(label, name, value) {
 
 function eventCheckboxRows(events) {
   const disabledHint = !formDraft.groupId ? "请先选择参赛组别" : "当前组别暂无可选项目";
+  const pricingRule = getPricingRule(getCurrentRegistrationSettings());
   return `
     <div class="form-row project-row ${fieldErrorClass("eventIds")}">
       <span class="row-label">参赛项目</span>
@@ -317,7 +454,10 @@ function eventCheckboxRows(events) {
                   (item) => `
                     <label class="checkbox-option">
                       <input type="checkbox" name="eventIds" value="${item.id}" ${formDraft.eventIds.includes(item.id) ? "checked" : ""} />
-                      <span>${escapeHtml(item.name)}</span>
+                      <span class="project-option-copy">
+                        <strong>${escapeHtml(item.name)}</strong>
+                        <small>${escapeHtml(formatProjectFeeText(item, pricingRule))}</small>
+                      </span>
                     </label>
                   `,
                 )
@@ -329,6 +469,12 @@ function eventCheckboxRows(events) {
       ${fieldError("eventIds")}
     </div>
   `;
+}
+
+function formatProjectFeeText(item, pricingRule) {
+  if (pricingRule.mode === "tiered") return "按规则计费";
+  const fee = Number(item?.fee || 0);
+  return fee > 0 ? formatCurrency(fee) : "免费";
 }
 
 function renderProjectSelectionSummary() {
@@ -344,6 +490,7 @@ function renderProjectSelectionSummary() {
       <span>最少 ${pricingRule.minEventsPerPerson} 项</span>
       <span>最多 ${pricingRule.maxEventsPerPerson} 项</span>
       <strong>当前费用 ${formatCurrency(amount)}</strong>
+      ${pricingRule.mode === "tiered" ? "<em>费用按报名项目数量计算</em>" : ""}
       ${remainingCount > 0 ? `<em>至少还需选择 ${remainingCount} 项</em>` : `<em>已满足最低报名项目数</em>`}
     </div>
   `;

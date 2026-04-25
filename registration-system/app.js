@@ -6,6 +6,7 @@ const modalRoot = document.querySelector("#modalRoot");
 const phoneShell = document.querySelector(".phone-shell");
 const moreMenuRoot = document.querySelector("#moreMenuRoot");
 let pendingInsuranceUploadFile = null;
+let detailCountdownTimer = null;
 
 init();
 
@@ -27,6 +28,7 @@ async function init() {
   syncDerivedDraftFields();
   restorePageFromHistoryState();
   bindEvents();
+  startDetailCountdownTimer();
   render();
   if (eventIdCheck.valid) {
     await hydrateInitialRemoteData();
@@ -39,6 +41,15 @@ function bindEvents() {
   document.addEventListener("input", handleInput);
   document.addEventListener("change", handleChange);
   window.addEventListener("popstate", handlePopState);
+}
+
+function startDetailCountdownTimer() {
+  if (detailCountdownTimer) return;
+  detailCountdownTimer = window.setInterval(() => {
+    if (uiState.currentPage === "detail" && uiState.eventLoadStatus === "ready") {
+      render();
+    }
+  }, 60000);
 }
 
 async function hydrateInitialRemoteData() {
@@ -95,6 +106,15 @@ function getRegistrationAppConfig() {
 
 function openEventAdmin() {
   window.location.href = getRegistrationAppConfig().eventAdminUrl;
+}
+
+function openPhotoQuery(url) {
+  const targetUrl = normalizeAlltuuMiniProgramUrl(url);
+  if (!targetUrl) {
+    showToast("照片查询暂未开放");
+    return;
+  }
+  window.open(targetUrl, "_blank");
 }
 
 function getRequestedEventId() {
@@ -239,6 +259,9 @@ async function handleClick(eventTarget) {
   }
   if (action === "lookup") {
     goToPage("registration_lookup");
+  }
+  if (action === "open-photo-query") {
+    openPhotoQuery(actionButton.dataset.photoUrl);
   }
   if (action === "next-form") {
     submitFormStep();

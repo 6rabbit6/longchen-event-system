@@ -61,6 +61,27 @@ button {
   color: #fff;
 }
 
+.hero-clickable {
+  cursor: pointer;
+}
+
+.hero-bg-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.58;
+}
+
+.hero.has-banner-image::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(90deg, rgba(14, 80, 77, 0.9) 0%, rgba(18, 128, 116, 0.7) 54%, rgba(14, 80, 77, 0.36) 100%);
+}
+
 .hero::after {
   content: "";
   position: absolute;
@@ -126,6 +147,7 @@ button {
 .hero-art {
   position: absolute;
   inset: 0;
+  z-index: 1;
   pointer-events: none;
 }
 
@@ -157,6 +179,50 @@ button {
   height: 58px;
   border: 9px solid rgba(255, 255, 255, 0.5);
   border-radius: 50%;
+}
+
+.announcement-bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  margin: -30px 14px 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(31, 36, 45, 0.1);
+  z-index: 4;
+}
+
+.announcement-bar > span {
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.announcement-bar div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.announcement-bar p,
+.announcement-bar button {
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.announcement-bar button {
+  padding: 0;
+}
+
+.announcement-bar + .quick-grid {
+  margin-top: 0;
 }
 
 .quick-grid {
@@ -440,7 +506,7 @@ button {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   width: min(100%, 480px);
-  min-height: 72px;
+  min-height: 68px;
   transform: translateX(-50%);
   border-top: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.96);
@@ -449,13 +515,25 @@ button {
 
 .bottom-nav button {
   display: grid;
-  gap: 3px;
+  gap: 1px;
   place-items: center;
+  min-height: 58px;
+  padding: 7px 0 6px;
   border: 0;
   background: transparent;
   color: #666f7c;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
+  line-height: 1.1;
+}
+
+.bottom-nav svg {
+  width: 22px;
+  height: 22px;
+}
+
+.bottom-nav span {
+  line-height: 1.1;
 }
 
 .bottom-nav button.is-active {

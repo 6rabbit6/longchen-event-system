@@ -7,6 +7,20 @@ const corsHeaders = {
 };
 
 const EVENT_ID_PATTERN = /^[a-z0-9_-]+$/;
+const PLATFORM_HOME_CONFIG_ID = "platform_home_config";
+const DEFAULT_HOME_CONFIG = {
+  heroTitle: "龙辰赛事服务平台",
+  heroSubtitle: "赛事报名、成绩查询、订单与保险服务一站式入口",
+  announcements: [
+    {
+      id: "default_notice",
+      text: "官方赛事报名入口已上线，报名、查询与订单服务将逐步接入。",
+      enabled: true,
+      linkUrl: "",
+    },
+  ],
+  banners: [],
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -68,15 +82,45 @@ async function handleAction(action: string, payload: Record<string, unknown>, ad
       return bulkReviewRegistrations(admin, toStringArray(payload.registrationNos), safeText(payload.status), adminEmail);
     case "exportApprovedRegistrations":
       return exportApprovedRegistrations(admin, payload.filters as Record<string, unknown>);
+    case "getPlatformHomeConfig":
+      return getPlatformHomeConfig(admin);
+    case "savePlatformHomeConfig":
+      return savePlatformHomeConfig(admin, payload.homeConfig as Record<string, unknown>);
     default:
       throw new AppError("UNKNOWN_ACTION", "未知接口动作", 400);
   }
 }
 
 async function listEvents(admin: ReturnType<typeof createClient>) {
-  const { data, error } = await admin.from("events").select("*").order("registration_start_date", { ascending: false });
+  const { data, error } = await admin.from("events").select("*").neq("id", PLATFORM_HOME_CONFIG_ID).order("registration_start_date", { ascending: false });
   if (error) throw error;
   return data || [];
+}
+
+async function getPlatformHomeConfig(admin: ReturnType<typeof createClient>) {
+  const { data, error } = await admin.from("events").select("registration_config").eq("id", PLATFORM_HOME_CONFIG_ID).maybeSingle();
+  if (error) throw error;
+  const config = asObject(asObject(data?.registration_config).platformHomeConfig || asObject(data?.registration_config).homeConfig);
+  return sanitizePlatformHomeConfig(config, false);
+}
+
+async function savePlatformHomeConfig(admin: ReturnType<typeof createClient>, homeConfig: Record<string, unknown>) {
+  const normalized = sanitizePlatformHomeConfig(homeConfig, false);
+  const row = {
+    id: PLATFORM_HOME_CONFIG_ID,
+    name: "平台首页配置",
+    registration_config: {
+      platform: {
+        isPublished: false,
+        visibleOnPlatform: false,
+        deletedAt: new Date().toISOString(),
+      },
+      platformHomeConfig: normalized,
+    },
+  };
+  const { data, error } = await admin.from("events").upsert(row, { onConflict: "id" }).select("*");
+  if (error) throw error;
+  return Array.isArray(data) ? data[0] || null : data;
 }
 
 async function getEventDetail(admin: ReturnType<typeof createClient>, eventId: string) {
@@ -89,6 +133,7 @@ async function getEventDetail(admin: ReturnType<typeof createClient>, eventId: s
 async function checkEventIdAvailable(admin: ReturnType<typeof createClient>, eventId: string, currentEventId = "") {
   const normalizedId = normalizeEventId(eventId);
   assertSafeEventId(normalizedId);
+  if (normalizedId === PLATFORM_HOME_CONFIG_ID) return { available: false };
   if (normalizedId === normalizeEventId(currentEventId)) return { available: true };
   const { data, error } = await admin.from("events").select("id").eq("id", normalizedId).limit(1);
   if (error) throw error;
@@ -109,6 +154,9 @@ async function saveEvent(admin: ReturnType<typeof createClient>, eventDraft: Rec
   const originalId = normalizeEventId(eventDraft.originalId);
   const nextId = normalizeEventId(eventDraft.id);
   assertSafeEventId(nextId);
+  if (nextId === PLATFORM_HOME_CONFIG_ID) {
+    throw new AppError("RESERVED_EVENT_ID", "该 eventId 为系统保留配置 ID，不能用于赛事", 409);
+  }
 
   if (originalId && originalId !== nextId) {
     const has = await checkEventHasRegistrations(admin, originalId);
@@ -258,10 +306,6 @@ function mapEventDraftToDbRow(draft: Record<string, unknown>) {
     competition_start_date: nullableText(draft.competitionStartDate),
     competition_end_date: nullableText(draft.competitionEndDate),
     location: safeText(draft.location),
-    description: safeText(draft.description)
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean),
     regulation_file_name: safeText(asObject(draft.regulationFile).name),
     regulation_file_url: safeText(asObject(draft.regulationFile).url),
     commitment_file_name: safeText(asObject(draft.commitmentFile).name),
@@ -283,6 +327,46 @@ function assertSafeEventId(eventId: string) {
 
 function normalizeEventId(value: unknown) {
   return safeText(value).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9_-]/g, "");
+}
+
+function sanitizePlatformHomeConfig(value: Record<string, unknown>, publicOnly: boolean) {
+  const config = asObject(value);
+  const announcements = (Array.isArray(config.announcements) ? config.announcements : DEFAULT_HOME_CONFIG.announcements)
+    .map((item, index) => {
+      const source = asObject(item);
+      return {
+        id: normalizeEventId(source.id) || `notice_${index + 1}`,
+        text: safeText(source.text),
+        enabled: source.enabled !== false,
+        linkUrl: safeText(source.linkUrl),
+      };
+    })
+    .filter((item) => item.text && (!publicOnly || item.enabled))
+    .slice(0, 3);
+  const banners = (Array.isArray(config.banners) ? config.banners : DEFAULT_HOME_CONFIG.banners)
+    .map((item, index) => {
+      const source = asObject(item);
+      const linkType = ["none", "event", "url"].includes(safeText(source.linkType)) ? safeText(source.linkType) : "none";
+      return {
+        id: normalizeEventId(source.id) || `banner_${index + 1}`,
+        title: safeText(source.title),
+        subtitle: safeText(source.subtitle),
+        imageUrl: safeText(source.imageUrl),
+        enabled: source.enabled !== false,
+        sortOrder: Number(source.sortOrder || index) || 0,
+        linkType,
+        eventId: normalizeEventId(source.eventId),
+        linkUrl: safeText(source.linkUrl),
+      };
+    })
+    .filter((item) => (item.title || item.imageUrl) && (!publicOnly || item.enabled))
+    .slice(0, 3);
+  return {
+    heroTitle: safeText(config.heroTitle) || DEFAULT_HOME_CONFIG.heroTitle,
+    heroSubtitle: safeText(config.heroSubtitle) || DEFAULT_HOME_CONFIG.heroSubtitle,
+    announcements,
+    banners,
+  };
 }
 
 function nullableText(value: unknown) {

@@ -16,6 +16,20 @@ const EVENT_STATUS = {
   REGISTRATION_CLOSED: "registration_closed",
   EVENT_ENDED: "event_ended",
 };
+const PLATFORM_HOME_CONFIG_ID = "platform_home_config";
+const DEFAULT_HOME_CONFIG = {
+  heroTitle: "龙辰赛事服务平台",
+  heroSubtitle: "赛事报名、成绩查询、订单与保险服务一站式入口",
+  announcements: [
+    {
+      id: "default_notice",
+      text: "官方赛事报名入口已上线，报名、查询与订单服务将逐步接入。",
+      enabled: true,
+      linkUrl: "",
+    },
+  ],
+  banners: [],
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -50,15 +64,24 @@ async function handleAction(action: string, payload: Record<string, unknown>, ad
       return searchRegistrations(admin, payload);
     case "uploadInsuranceFile":
       return uploadInsuranceFile(admin, payload);
+    case "getPlatformHomeConfig":
+      return getPlatformHomeConfig(admin);
     default:
       throw new AppError("UNKNOWN_ACTION", "未知接口动作", 400);
   }
 }
 
 async function listPublicEvents(admin: ReturnType<typeof createClient>) {
-  const { data, error } = await admin.from("events").select("*").order("registration_start_date", { ascending: false });
+  const { data, error } = await admin.from("events").select("*").neq("id", PLATFORM_HOME_CONFIG_ID).order("registration_start_date", { ascending: false });
   if (error) throw error;
   return (data || []).filter((row) => isPublicVisibleEvent(row)).map((row) => ({ ...row, public_status: calculateEventStatus(row) }));
+}
+
+async function getPlatformHomeConfig(admin: ReturnType<typeof createClient>) {
+  const { data, error } = await admin.from("events").select("registration_config").eq("id", PLATFORM_HOME_CONFIG_ID).maybeSingle();
+  if (error) throw error;
+  const config = asObject(asObject(data?.registration_config).platformHomeConfig || asObject(data?.registration_config).homeConfig);
+  return sanitizePlatformHomeConfig(config, true);
 }
 
 async function getPublicEventDetail(admin: ReturnType<typeof createClient>, eventId: string) {
@@ -416,6 +439,46 @@ function assertSafeEventId(eventId: string) {
 
 function normalizeEventId(value: unknown) {
   return safeText(value).toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9_-]/g, "");
+}
+
+function sanitizePlatformHomeConfig(value: Record<string, unknown>, publicOnly: boolean) {
+  const config = asObject(value);
+  const announcements = (Array.isArray(config.announcements) ? config.announcements : DEFAULT_HOME_CONFIG.announcements)
+    .map((item, index) => {
+      const source = asObject(item);
+      return {
+        id: normalizeEventId(source.id) || `notice_${index + 1}`,
+        text: safeText(source.text),
+        enabled: source.enabled !== false,
+        linkUrl: safeText(source.linkUrl),
+      };
+    })
+    .filter((item) => item.text && (!publicOnly || item.enabled))
+    .slice(0, 3);
+  const banners = (Array.isArray(config.banners) ? config.banners : DEFAULT_HOME_CONFIG.banners)
+    .map((item, index) => {
+      const source = asObject(item);
+      const linkType = ["none", "event", "url"].includes(safeText(source.linkType)) ? safeText(source.linkType) : "none";
+      return {
+        id: normalizeEventId(source.id) || `banner_${index + 1}`,
+        title: safeText(source.title),
+        subtitle: safeText(source.subtitle),
+        imageUrl: safeText(source.imageUrl),
+        enabled: source.enabled !== false,
+        sortOrder: Number(source.sortOrder || index) || 0,
+        linkType,
+        eventId: normalizeEventId(source.eventId),
+        linkUrl: safeText(source.linkUrl),
+      };
+    })
+    .filter((item) => (item.title || item.imageUrl) && (!publicOnly || item.enabled))
+    .slice(0, 3);
+  return {
+    heroTitle: safeText(config.heroTitle) || DEFAULT_HOME_CONFIG.heroTitle,
+    heroSubtitle: safeText(config.heroSubtitle) || DEFAULT_HOME_CONFIG.heroSubtitle,
+    announcements,
+    banners,
+  };
 }
 
 function normalizeCertificate(value: unknown) {

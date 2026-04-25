@@ -113,6 +113,9 @@ async function adminApiRequest(action, payload = {}, fallback) {
       if (response.status === 404 || response.status === 405) {
         throw new EdgeApiUnavailableError(body?.message || "统一接口尚未部署");
       }
+      if (body?.code === "UNKNOWN_ACTION") {
+        throw new EdgeApiUnavailableError(body?.message || "统一接口动作尚未部署");
+      }
       throw new EdgeApiBusinessError(body?.message || `统一接口请求失败：${response.status}`);
     } catch (error) {
       if (error instanceof EdgeApiBusinessError) throw error;
@@ -128,18 +131,57 @@ async function adminApiRequest(action, payload = {}, fallback) {
 class EdgeApiUnavailableError extends Error {}
 class EdgeApiBusinessError extends Error {}
 
+const PLATFORM_HOME_CONFIG_ID = "platform_home_config";
+
 function eq(column, value) {
   return `${column}=eq.${encodeURIComponent(String(value || ""))}`;
 }
 
 async function loadEvents() {
-  const rows = await restRequest("events", { query: "select=*&order=registration_start_date.desc" });
+  const rows = await restRequest("events", { query: `select=*&id=neq.${PLATFORM_HOME_CONFIG_ID}&order=registration_start_date.desc` });
   return Array.isArray(rows) ? rows.map(mapDbEvent) : [];
 }
 
 async function fetchEventList() {
   const rows = await adminApiRequest("listEvents", {}, () => loadEvents());
   return Array.isArray(rows) ? rows.map(mapDbEvent) : [];
+}
+
+async function loadPlatformHomeConfig() {
+  const rows = await restRequest("events", { query: `${eq("id", PLATFORM_HOME_CONFIG_ID)}&limit=1` });
+  const row = Array.isArray(rows) ? rows[0] : null;
+  return normalizePlatformHomeConfig(row?.registration_config?.platformHomeConfig || row?.registration_config?.homeConfig || {});
+}
+
+async function fetchPlatformHomeConfig() {
+  const config = await adminApiRequest("getPlatformHomeConfig", {}, () => loadPlatformHomeConfig());
+  return normalizePlatformHomeConfig(config || {});
+}
+
+async function savePlatformHomeConfig(homeConfig) {
+  const normalized = normalizePlatformHomeConfig(homeConfig);
+  const row = await adminApiRequest("savePlatformHomeConfig", { homeConfig: normalized }, async () => {
+    const dbRow = {
+      id: PLATFORM_HOME_CONFIG_ID,
+      name: "平台首页配置",
+      registration_config: {
+        platform: {
+          isPublished: false,
+          visibleOnPlatform: false,
+          deletedAt: new Date().toISOString(),
+        },
+        platformHomeConfig: normalized,
+      },
+    };
+    const rows = await restRequest("events", {
+      method: "POST",
+      query: "on_conflict=id",
+      prefer: "resolution=merge-duplicates,return=representation",
+      body: dbRow,
+    });
+    return Array.isArray(rows) ? rows[0] : null;
+  });
+  return normalizePlatformHomeConfig(row?.registration_config?.platformHomeConfig || row?.homeConfig || normalized);
 }
 
 async function fetchEventDetail(eventId) {
@@ -153,6 +195,7 @@ async function fetchEventDetail(eventId) {
 async function checkEventIdAvailable(eventId, currentEventId = "") {
   const normalizedId = normalizeEventIdInput(eventId);
   if (!normalizedId) return false;
+  if (normalizedId === PLATFORM_HOME_CONFIG_ID) return false;
   if (normalizedId === normalizeEventIdInput(currentEventId)) return true;
   const result = await adminApiRequest("checkEventIdAvailable", { eventId: normalizedId, currentEventId }, async () => {
     const rows = await restRequest("events", { query: `select=id&${eq("id", normalizedId)}&limit=1` });
@@ -296,7 +339,11 @@ function mapDbEvent(row = {}) {
     ...(registrationConfig.files || {}),
     regulationArticleUrl: registrationConfig.files?.regulationArticleUrl || row.regulation_article_url || row.regulationArticleUrl || "",
     commitmentArticleUrl: registrationConfig.files?.commitmentArticleUrl || row.commitment_article_url || row.commitmentArticleUrl || "",
+    regulationContent: registrationConfig.files?.regulationContent || row.regulation_content || row.regulationContent || "",
+    commitmentContent: registrationConfig.files?.commitmentContent || row.commitment_content || row.commitmentContent || "",
+    photoQueryUrl: registrationConfig.files?.photoQueryUrl || registrationConfig.photoQueryUrl || registrationConfig.platform?.photoQueryUrl || "",
   };
+  registrationConfig.photoQueryUrl = registrationConfig.photoQueryUrl || registrationConfig.files.photoQueryUrl || "";
   return {
     id: row.id || "",
     name: row.name || "",
@@ -337,7 +384,11 @@ function mapEventDraftToDbRow(draft) {
     ...(registrationConfig.files || {}),
     regulationArticleUrl: String(registrationConfig.files?.regulationArticleUrl || draft.regulationArticleUrl || draft.regulationFile?.articleUrl || "").trim(),
     commitmentArticleUrl: String(registrationConfig.files?.commitmentArticleUrl || draft.commitmentArticleUrl || draft.commitmentFile?.articleUrl || "").trim(),
+    regulationContent: String(registrationConfig.files?.regulationContent || "").trim(),
+    commitmentContent: String(registrationConfig.files?.commitmentContent || "").trim(),
+    photoQueryUrl: String(registrationConfig.photoQueryUrl || registrationConfig.files?.photoQueryUrl || "").trim(),
   };
+  registrationConfig.photoQueryUrl = String(registrationConfig.photoQueryUrl || registrationConfig.files.photoQueryUrl || "").trim();
   return {
     id: normalizeEventIdInput(draft.id),
     name: String(draft.name || "").trim(),
@@ -346,10 +397,6 @@ function mapEventDraftToDbRow(draft) {
     competition_start_date: draft.competitionStartDate || null,
     competition_end_date: draft.competitionEndDate || null,
     location: String(draft.location || "").trim(),
-    description: String(draft.description || "")
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean),
     regulation_file_name: draft.regulationFile?.name || "",
     regulation_file_url: draft.regulationFile?.url || "",
     commitment_file_name: draft.commitmentFile?.name || "",
@@ -396,6 +443,19 @@ function createDefaultRegistrationConfig() {
     files: {
       regulationArticleUrl: "",
       commitmentArticleUrl: "",
+      regulationContent: "",
+      commitmentContent: "",
+      photoQueryUrl: "",
+    },
+    photoQueryUrl: "",
+    weather: {
+      enabled: true,
+      mode: "manual",
+      temperature: "",
+      condition: "",
+      humidity: "",
+      wind: "",
+      location: "",
     },
     pricingRule: {
       mode: "itemized",

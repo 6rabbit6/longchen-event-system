@@ -130,3 +130,19 @@ const quickActions = [
   { id: "orders", label: "赛事订单", description: "查看报名订单", icon: "order" },
   { id: "insurance", label: "赛事保险", description: "保险服务入口", icon: "shield" },
 ];
+
+function createDefaultHomeConfig() {
+  return {
+    heroTitle: "龙辰赛事服务平台",
+    heroSubtitle: "赛事报名、成绩查询、订单与保险服务一站式入口",
+    announcements: [
+      {
+        id: "default_notice",
+        text: "官方赛事报名入口已上线，报名、查询与订单服务将逐步接入。",
+        enabled: true,
+        linkUrl: "",
+      },
+    ],
+    banners: [],
+  };
+}

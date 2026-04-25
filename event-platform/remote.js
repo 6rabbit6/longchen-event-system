@@ -72,6 +72,50 @@ async function loadPlatformEvents() {
   return rows.map(mapDbEventToPlatformEvent).filter(isPlatformEventVisible).sort(sortPlatformEvents);
 }
 
+async function loadPlatformHomeConfig() {
+  const fallback = () => Promise.resolve(createDefaultHomeConfig());
+  try {
+    const config = await platformPublicApiRequest("getPlatformHomeConfig", {}, fallback);
+    return normalizePlatformHomeConfig(config);
+  } catch (error) {
+    console.warn("loadPlatformHomeConfig failed, use default", error);
+    return createDefaultHomeConfig();
+  }
+}
+
+function normalizePlatformHomeConfig(config = {}) {
+  const defaults = createDefaultHomeConfig();
+  const announcements = Array.isArray(config.announcements) ? config.announcements : defaults.announcements;
+  const banners = Array.isArray(config.banners) ? config.banners : defaults.banners;
+  return {
+    heroTitle: String(config.heroTitle || defaults.heroTitle).trim(),
+    heroSubtitle: String(config.heroSubtitle || defaults.heroSubtitle).trim(),
+    announcements: announcements
+      .map((item, index) => ({
+        id: String(item?.id || `notice_${index + 1}`).trim(),
+        text: String(item?.text || "").trim(),
+        enabled: item?.enabled !== false,
+        linkUrl: String(item?.linkUrl || "").trim(),
+      }))
+      .filter((item) => item.text)
+      .slice(0, 3),
+    banners: banners
+      .map((item, index) => ({
+        id: String(item?.id || `banner_${index + 1}`).trim(),
+        title: String(item?.title || "").trim(),
+        subtitle: String(item?.subtitle || "").trim(),
+        imageUrl: String(item?.imageUrl || "").trim(),
+        enabled: item?.enabled !== false,
+        sortOrder: Number(item?.sortOrder || index),
+        linkType: ["none", "event", "url"].includes(item?.linkType) ? item.linkType : "none",
+        eventId: normalizePlatformEventId(item?.eventId || ""),
+        linkUrl: String(item?.linkUrl || "").trim(),
+      }))
+      .filter((item) => item.title || item.imageUrl)
+      .slice(0, 3),
+  };
+}
+
 function mapDbEventToPlatformEvent(row) {
   const config = row.registration_config && typeof row.registration_config === "object" ? row.registration_config : {};
   const platform = config.platform || {};
@@ -107,7 +151,7 @@ function mapDbEventToPlatformEvent(row) {
 }
 
 function isPlatformEventVisible(eventItem) {
-  return Boolean(isSafePlatformEventId(eventItem.id) && isPlatformVisibleByStatus(eventItem.status));
+  return Boolean(eventItem.id !== "platform_home_config" && isSafePlatformEventId(eventItem.id) && isPlatformVisibleByStatus(eventItem.status));
 }
 
 function sortPlatformEvents(a, b) {

@@ -52,6 +52,16 @@ const registrationSettings = {
     extraPricePerItem: 50,
   },
   insuranceRequired: true,
+  photoQueryUrl: "",
+  weather: {
+    enabled: true,
+    mode: "manual",
+    temperature: "",
+    condition: "",
+    humidity: "",
+    wind: "",
+    location: "",
+  },
   certificateTypes: [
     { value: "id_card", label: "身份证" },
     { value: "passport", label: "护照" },
@@ -318,6 +328,7 @@ function sanitizeRegistrationConfig(source) {
     maxEventsPerPerson: pricingRule.maxEventsPerPerson,
     pricingRule,
     insuranceRequired: Boolean(source?.insuranceRequired ?? fallback.insuranceRequired),
+    photoQueryUrl: safeText(source?.photoQueryUrl || source?.platform?.photoQueryUrl || source?.files?.photoQueryUrl),
     certificateTypes: certificateTypes.map((item) => ({
       value: safeText(item.value || createCertificateValueFromLabel(item.label)),
       label: safeText(item.label),
@@ -327,6 +338,15 @@ function sanitizeRegistrationConfig(source) {
       name: safeText(item.name),
       enabled: item.enabled !== false,
     })),
+    weather: {
+      enabled: source?.weather?.enabled !== false,
+      mode: source?.weather?.mode === "auto" ? "auto" : "manual",
+      temperature: safeText(source?.weather?.temperature),
+      condition: safeText(source?.weather?.condition || source?.weather?.weather),
+      humidity: safeText(source?.weather?.humidity || source?.weather?.sd),
+      wind: safeText(source?.weather?.wind || `${safeText(source?.weather?.wind_direction || source?.weather?.windDirection)}${safeText(source?.weather?.wind_power || source?.weather?.windPower)}`),
+      location: safeText(source?.weather?.location || source?.weather?.city || source?.weather?.district),
+    },
     groups: groups.map((group) => ({
       id: safeText(group.id),
       name: safeText(group.name),

@@ -10,6 +10,9 @@ const adminState = {
   registrationStatusFilter: "all",
   registrationSearch: "",
   editingEvent: null,
+  homeConfig: createDefaultPlatformHomeConfig(),
+  homeConfigDraft: null,
+  homeConfigError: "",
   login: {
     email: "",
     password: "",
@@ -21,6 +24,7 @@ const adminState = {
 const navItems = [
   { id: "events", label: "赛事管理" },
   { id: "registrations", label: "报名审核" },
+  { id: "platform_home", label: "平台首页" },
 ];
 
 const reviewLabels = {

@@ -445,6 +445,144 @@ button {
   line-height: 1.45;
 }
 
+.event-tool-wrapper {
+  display: flex;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.event-tool-card {
+  position: relative;
+  min-height: 98px;
+  overflow: hidden;
+  border: 1px solid rgba(228, 232, 240, 0.86);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(31, 38, 54, 0.06);
+}
+
+.weather-card {
+  flex: 0 0 40%;
+  padding: 13px 12px;
+}
+
+.weather-main {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+
+.weather-temp {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  color: #111827;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.weather-temp span {
+  font-size: 29px;
+}
+
+.weather-temp small {
+  margin-top: 2px;
+  font-size: 18px;
+}
+
+.weather-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.weather-copy span,
+.weather-sub span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weather-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  padding-right: 24px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.weather-icon {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  color: #facc15;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.countdown-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 10px;
+}
+
+.countdown-card-full {
+  min-height: 82px;
+}
+
+.countdown-title {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.countdown-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.countdown-row strong {
+  display: grid;
+  min-width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0 4px;
+  border-radius: 5px;
+  background: #26aa35;
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.countdown-row span {
+  margin: 0 5px;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.countdown-row span:last-child {
+  margin-right: 0;
+}
+
+.countdown-message {
+  color: #26aa35;
+  font-size: 16px;
+}
+
 .title-block {
   display: grid;
   grid-template-columns: 1fr;
@@ -552,41 +690,58 @@ button {
 
 
 
-.landing-query-card {
-  padding: 0;
-  overflow: hidden;
+.landing-query-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
 }
 
-.landing-query-card button {
+.landing-query-grid.has-photo {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.landing-query-entry {
   display: flex;
   width: 100%;
   min-height: 64px;
   align-items: center;
   justify-content: space-between;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
   padding: 0 16px;
   background: #fff;
   color: #1c9c43;
   text-align: left;
 }
 
-.landing-query-card button::after {
+.landing-query-entry::after {
   color: #1c9c43;
   font-size: 23px;
   content: "›";
 }
 
-.landing-query-card span {
+.landing-query-entry span {
   display: block;
   font-size: 18px;
   font-weight: 800;
 }
 
-.landing-query-card strong {
+.landing-query-entry strong {
   display: block;
   margin-top: 4px;
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
+}
+
+.photo-query-entry {
+  background: linear-gradient(135deg, #12b8a6, #0f8f7f);
+  color: #fff;
+}
+
+.photo-query-entry::after,
+.photo-query-entry strong {
+  color: rgba(255, 255, 255, 0.84);
 }
 
 .info-card h3 {
@@ -1769,6 +1924,23 @@ button {
 
 .checkbox-option span {
   overflow-wrap: anywhere;
+}
+
+.checkbox-option .project-option-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.checkbox-option .project-option-copy strong {
+  color: #252a31;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.checkbox-option .project-option-copy small {
+  color: #8b929d;
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .upload-row {

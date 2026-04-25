@@ -43,7 +43,16 @@ function render() {
     app.innerHTML = `<div class="empty-card">正在加载...</div>`;
     return;
   }
-  app.innerHTML = adminState.page === "registrations" ? renderRegistrationsPage() : renderEventsPage() + renderEventEditor();
+  if (adminState.page === "registrations") {
+    app.innerHTML = renderRegistrationsPage();
+    return;
+  }
+  if (adminState.page === "platform_home") {
+    if (!adminState.homeConfigDraft) adminState.homeConfigDraft = JSON.parse(JSON.stringify(adminState.homeConfig || createDefaultPlatformHomeConfig()));
+    app.innerHTML = renderPlatformHomePage();
+    return;
+  }
+  app.innerHTML = renderEventsPage() + renderEventEditor();
 }
 
 async function refreshAll() {
@@ -51,6 +60,8 @@ async function refreshAll() {
   render();
   adminState.events = await fetchEventList();
   adminState.registrations = await fetchRegistrationList();
+  adminState.homeConfig = await fetchPlatformHomeConfig();
+  adminState.homeConfigDraft = JSON.parse(JSON.stringify(adminState.homeConfig));
   adminState.loading = false;
   render();
 }
@@ -65,6 +76,7 @@ async function handleClick(event) {
   }
   if (action === "go-page") {
     adminState.page = target.dataset.page;
+    if (adminState.page === "platform_home") adminState.homeConfigDraft = JSON.parse(JSON.stringify(adminState.homeConfig || createDefaultPlatformHomeConfig()));
     render();
   }
   if (action === "new-event") {
@@ -72,6 +84,7 @@ async function handleClick(event) {
     adminState.formErrors = {};
     adminState.saveError = "";
     render();
+    focusEventEditor();
   }
   if (action === "edit-event") {
     const eventItem = adminState.events.find((item) => item.id === target.dataset.eventId);
@@ -87,6 +100,8 @@ async function handleClick(event) {
     adminState.formErrors = {};
     adminState.saveError = "";
     render();
+    showToast("已进入赛事编辑");
+    focusEventEditor();
   }
   if (action === "close-editor") {
     adminState.editingEvent = null;
@@ -118,6 +133,11 @@ async function handleClick(event) {
   if (action === "bulk-approve") await bulkApprove();
   if (action === "export-json") await exportApproved("json");
   if (action === "export-csv") await exportApproved("csv");
+  if (action === "add-home-announcement") addHomeAnnouncement();
+  if (action === "remove-home-announcement") removeHomeAnnouncement(Number(target.dataset.index));
+  if (action === "add-home-banner") addHomeBanner();
+  if (action === "remove-home-banner") removeHomeBanner(Number(target.dataset.index));
+  if (action === "save-platform-home") await handleSavePlatformHome();
 }
 
 function handleInput(event) {
@@ -130,6 +150,10 @@ function handleInput(event) {
   if (target.name === "registrationSearch") {
     adminState.registrationSearch = target.value;
     render();
+    return;
+  }
+  if (target.dataset.homeField || target.dataset.homeAnnouncementIndex || target.dataset.homeBannerIndex) {
+    updateHomeConfigDraft(target);
     return;
   }
   if (!adminState.editingEvent) return;
@@ -157,8 +181,16 @@ function handleChange(event) {
     adminState.selectedBulkNos = Array.from(set);
     render();
   }
+  if (target.dataset.homeField || target.dataset.homeAnnouncementIndex || target.dataset.homeBannerIndex) {
+    updateHomeConfigDraft(target);
+    render();
+    return;
+  }
   if (!adminState.editingEvent) return;
-  if (target.dataset.field) updateDraftField(target);
+  if (target.dataset.field) {
+    updateDraftField(target);
+    if (target.dataset.field === "pricingRule.mode") render();
+  }
   if (target.dataset.certIndex) updateCertificateType(target);
   if (target.dataset.orgIndex) updateOrganization(target);
   if (target.dataset.groupField) updateGroup(target);
@@ -261,7 +293,6 @@ function createBlankEventDraft() {
     competitionStartDate: "",
     competitionEndDate: "",
     location: "",
-    description: "",
     regulationFile: { name: "", url: "" },
     commitmentFile: { name: "", url: "" },
     bannerImage: { url: "", fitMode: "cover" },
@@ -318,6 +349,72 @@ function setPath(obj, path, value) {
   });
 }
 
+function ensureHomeConfigDraft() {
+  if (!adminState.homeConfigDraft) adminState.homeConfigDraft = JSON.parse(JSON.stringify(adminState.homeConfig || createDefaultPlatformHomeConfig()));
+  return adminState.homeConfigDraft;
+}
+
+function updateHomeConfigDraft(target) {
+  const draft = ensureHomeConfigDraft();
+  const value = target.type === "checkbox" ? target.checked : target.type === "number" ? Number(target.value) : target.value;
+  if (target.dataset.homeField) {
+    draft[target.dataset.homeField] = value;
+    return;
+  }
+  if (target.dataset.homeAnnouncementIndex) {
+    const item = draft.announcements[Number(target.dataset.homeAnnouncementIndex)];
+    if (item) item[target.dataset.homeAnnouncementField] = value;
+    return;
+  }
+  if (target.dataset.homeBannerIndex) {
+    const item = draft.banners[Number(target.dataset.homeBannerIndex)];
+    if (item) item[target.dataset.homeBannerField] = value;
+  }
+}
+
+function addHomeAnnouncement() {
+  const draft = ensureHomeConfigDraft();
+  if (draft.announcements.length >= 3) return;
+  draft.announcements.push({ id: `notice_${Date.now()}`, text: "", enabled: true, linkUrl: "" });
+  render();
+}
+
+function removeHomeAnnouncement(index) {
+  const draft = ensureHomeConfigDraft();
+  draft.announcements.splice(index, 1);
+  render();
+}
+
+function addHomeBanner() {
+  const draft = ensureHomeConfigDraft();
+  if (draft.banners.length >= 3) return;
+  draft.banners.push({ id: `banner_${Date.now()}`, title: "", subtitle: "", imageUrl: "", enabled: true, sortOrder: draft.banners.length, linkType: "none", eventId: "", linkUrl: "" });
+  render();
+}
+
+function removeHomeBanner(index) {
+  const draft = ensureHomeConfigDraft();
+  draft.banners.splice(index, 1);
+  render();
+}
+
+async function handleSavePlatformHome() {
+  try {
+    const normalized = normalizePlatformHomeConfig(ensureHomeConfigDraft());
+    const saved = await savePlatformHomeConfig(normalized);
+    adminState.homeConfig = saved;
+    adminState.homeConfigDraft = JSON.parse(JSON.stringify(saved));
+    adminState.homeConfigError = "";
+    showToast("平台首页配置已保存");
+    render();
+  } catch (error) {
+    console.warn("save platform home failed", error);
+    adminState.homeConfigError = error.message || "平台首页配置保存失败";
+    showToast("平台首页配置保存失败");
+    render();
+  }
+}
+
 function addOrganization() {
   adminState.editingEvent.registrationConfig.organizations.push({ id: `org_${Date.now()}`, name: "", enabled: true });
   render();
@@ -329,7 +426,7 @@ function removeOrganization(index) {
 }
 
 function addCertificateType() {
-  adminState.editingEvent.registrationConfig.certificateTypes.push({ value: "", label: "" });
+  adminState.editingEvent.registrationConfig.certificateTypes.push({ value: `cert_${Date.now()}`, label: "" });
   render();
 }
 
@@ -348,7 +445,11 @@ function updateCertificateType(target) {
     target.value = value;
   }
   item[field] = field === "label" ? value.trimStart() : value;
+  if (field === "label" && (!item.value || /^cert_\d+$/.test(item.value))) {
+    item.value = createCertificateSystemValue(item.label, item.value);
+  }
   delete adminState.formErrors[`certificateTypes.${target.dataset.certIndex}.${field}`];
+  delete adminState.formErrors[`certificateTypes.${target.dataset.certIndex}.value`];
   delete adminState.formErrors.certificateTypes;
 }
 
@@ -379,7 +480,7 @@ function updateGroup(target) {
 }
 
 function addGroupEvent(groupIndex) {
-  adminState.editingEvent.registrationConfig.groups[groupIndex].events.push({ id: `event_${Date.now()}`, name: "", fee: 0 });
+  adminState.editingEvent.registrationConfig.groups[groupIndex].events.push({ id: `item_${Date.now()}`, name: "", fee: 0 });
   render();
 }
 
@@ -394,11 +495,50 @@ function updateGroupEvent(target) {
   const field = target.dataset.eventField;
   let value = target.type === "number" ? Number(target.value) : target.value;
   if (field === "id") {
+    if (adminState.editingEvent.eventIdLocked) {
+      target.value = item.id;
+      return;
+    }
     value = normalizeEventIdInput(value);
     target.value = value;
   }
   item[field] = value;
+  if (field === "name" && !adminState.editingEvent.eventIdLocked && (!item.id || isAutoGeneratedItemId(item.id))) {
+    item.id = createUniqueGroupEventId(value, item.id, item);
+  }
   delete adminState.formErrors[`groups.${target.dataset.groupIndex}.events.${target.dataset.eventIndex}.${field}`];
+  delete adminState.formErrors[`groups.${target.dataset.groupIndex}.events.${target.dataset.eventIndex}.id`];
+}
+
+function createCertificateSystemValue(label, fallback) {
+  const text = String(label || "").trim();
+  const knownValues = {
+    身份证: "id_card",
+    居民身份证: "id_card",
+    护照: "passport",
+    港澳通行证: "hk_macao_pass",
+    台湾通行证: "taiwan_pass",
+  };
+  return knownValues[text] || normalizeEventIdInput(text) || fallback || `cert_${Date.now()}`;
+}
+
+function isAutoGeneratedItemId(value) {
+  return /^event_\d+$/.test(String(value || "")) || /^item_\d+$/.test(String(value || ""));
+}
+
+function createUniqueGroupEventId(name, fallback, currentItem) {
+  const base = normalizeEventIdInput(name) || fallback || `item_${Date.now()}`;
+  const groups = adminState.editingEvent.registrationConfig.groups || [];
+  const usedIds = new Set();
+  groups.forEach((group) => {
+    (group.events || []).forEach((eventItem) => {
+      if (eventItem !== currentItem && eventItem.id) usedIds.add(eventItem.id);
+    });
+  });
+  if (!usedIds.has(base)) return base;
+  let suffix = 2;
+  while (usedIds.has(`${base}_${suffix}`)) suffix += 1;
+  return `${base}_${suffix}`;
 }
 
 function getFilteredRegistrations() {
@@ -531,4 +671,10 @@ function showToast(message) {
   toast.textContent = message;
   toast.classList.add("is-visible");
   toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 1800);
+}
+
+function focusEventEditor() {
+  window.requestAnimationFrame(() => {
+    document.querySelector("#eventEditor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
